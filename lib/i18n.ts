@@ -32,6 +32,14 @@ const strings = {
     savedLabel: (k: string) => `Saved ${k}s`,
     flutesAbbr: 'fl.',
     // illustration captions
+    helpLabel: 'Explanation',
+    fzWhy: 'Why can\'t fz be calculated?',
+    fzWhyText: 'fz only appears in vf = n · z · fz, so it can only be solved when the feed rate vf is known. Diameter and spindle speed alone only determine the cutting speed vc. Feed per tooth is a property of the tool and the workpiece material; manufacturers publish it in their cutting-data tables.',
+    fzSuggest: 'Rule of thumb',
+    fzSuggestText: 'Estimate for a carbide end mill: fz ≈ d / 150. Harder materials (steel, hard aluminium) go lower, around d / 200; soft materials (wood, soft plastics) tolerate more, around d / 100. Use it as a starting point, not as a calculated value.',
+    use: 'Use',
+    vcHelp: 'Typical cutting speeds',
+    vcHelpText: 'Reference values for carbide tools (m/min): wood / MDF 300–600, aluminium 200–500, brass 150–300, plastics 200–400, mild steel 80–150, stainless steel 40–80. HSS tools roughly one third of these. Check the tool manufacturer\'s data for your exact tool.',
     capVc: 'speed at the cutting edge', capFz: 'advance per tooth = chip thickness', capVf: 'tool travel through the material', capN: 'n rev/min',
     msg: (m: Message): string => {
       switch (m.kind) {
@@ -67,6 +75,14 @@ const strings = {
     kindTool: 'Werkzeug', kindSpindle: 'Spindel',
     savedLabel: (k: string) => (k === 'Werkzeug' ? 'Gespeicherte Werkzeuge' : 'Gespeicherte Spindeln'),
     flutesAbbr: 'Schn.',
+    helpLabel: 'Erklärung',
+    fzWhy: 'Warum lässt sich fz nicht berechnen?',
+    fzWhyText: 'fz kommt nur in vf = n · z · fz vor und lässt sich daher nur bestimmen, wenn der Vorschub vf bekannt ist. Durchmesser und Drehzahl allein legen nur die Schnittgeschwindigkeit vc fest. Der Zahnvorschub ist eine Eigenschaft von Werkzeug und Werkstückmaterial; Hersteller geben ihn in ihren Schnittdatentabellen an.',
+    fzSuggest: 'Faustregel',
+    fzSuggestText: 'Schätzwert für einen Hartmetall-Schaftfräser: fz ≈ d / 150. Harte Materialien (Stahl, hartes Aluminium) eher d / 200, weiche Materialien (Holz, weiche Kunststoffe) eher d / 100. Als Startwert gedacht, nicht als berechneter Wert.',
+    use: 'Übernehmen',
+    vcHelp: 'Typische Schnittgeschwindigkeiten',
+    vcHelpText: 'Richtwerte für Hartmetallwerkzeuge (m/min): Holz / MDF 300–600, Aluminium 200–500, Messing 150–300, Kunststoffe 200–400, Baustahl 80–150, Edelstahl 40–80. HSS-Werkzeuge etwa ein Drittel davon. Für das konkrete Werkzeug die Herstellerangaben prüfen.',
     capVc: 'Geschwindigkeit an der Schneide', capFz: 'Weg pro Zahn = Spandicke', capVf: 'Werkzeugweg durchs Material', capN: 'n U/min',
     msg: (m: Message): string => {
       switch (m.kind) {

@@ -9,6 +9,7 @@ import {
 import { Illustration } from './Illustration';
 import { t, other, type Lang } from '@/lib/i18n';
 import { PresetBar } from './PresetBar';
+import { Help } from './Help';
 
 const EMPTY: Inputs = { n: '', vc: '', d: '', z: '', fz: '', vf: '', nMax: '' };
 const STORAGE_KEY = 'cnc-milling-calc:v1';
@@ -73,6 +74,11 @@ export default function Page() {
     setLang(next);
     try { window.localStorage.setItem(LANG_KEY, next); } catch {}
   };
+
+  const fzSuggestion = useMemo(() => {
+    const d = sol.vars.d.value;
+    return inputs.fz.trim() === '' && d ? d / 150 : null;
+  }, [sol, inputs.fz]);
 
   const update = (key: keyof Inputs, value: string) =>
     setInputs((prev) => ({ ...prev, [key]: value }));
@@ -222,6 +228,8 @@ export default function Page() {
                   <span className="name">{v.name[lang]}</span>
                   <span className="name2">{v.name[o]}</span>
                   <span className="unit">{v.unit === 'RPM (1/min)' && lang === 'de' ? 'U/min' : v.unit}</span>
+                  {v.key === 'fz' && <Help label={s.helpLabel}><strong>{s.fzWhy}</strong><br />{s.fzWhyText}</Help>}
+                  {v.key === 'vc' && <Help label={s.helpLabel}><strong>{s.vcHelp}</strong><br />{s.vcHelpText}</Help>}
                 </label>
                 <span className="desc">{v.description[lang]}</span>
                 <div className="row">
@@ -244,6 +252,14 @@ export default function Page() {
                     </button>
                   )}
                 </div>
+                {v.key === 'fz' && fzSuggestion !== null && (
+                  <div className="suggest">
+                    <span className="k">{s.fzSuggest}:</span>
+                    <span className="v">{fmt(fzSuggestion)} mm</span>
+                    <button type="button" className="btn small" onClick={() => update('fz', fmt(fzSuggestion))}>{s.use}</button>
+                    <Help label={s.helpLabel}><strong>{s.fzSuggest}</strong><br />{s.fzSuggestText}</Help>
+                  </div>
+                )}
               </div>
             );
           })}
