@@ -26,7 +26,7 @@ const strings = {
     placeholder: 'enter or leave empty',
     legend: 'Values entered by you are marked given; blue fields are calculated. Typing into a calculated field turns it into a given value. Decimal comma or point both work. Everything you enter is kept in this browser until you change it.',
     result: 'Result',
-    resN: 'Spindle speed n', capped: '(capped)', resVf: 'Feed rate vf (F)', vfCapped: '(capped)', resVc: 'Effective cutting speed vc', resNReq: 'Required n (uncapped)',
+    resN: 'Spindle speed n (S)', capped: '(capped)', resVf: 'Feed rate vf (Fxy)', vfCapped: '(capped)', resVc: 'Effective cutting speed vc', resNReq: 'Required n (uncapped)',
     reset: 'Reset all fields',
     clear: 'Clear',
     // preset bar
@@ -81,7 +81,7 @@ const strings = {
     placeholder: 'eingeben oder leer lassen',
     legend: 'Von dir eingegebene Werte sind als gegeben markiert, blaue Felder sind berechnet. Tippst du in ein berechnetes Feld, wird es zu einem gegebenen Wert. Dezimalkomma und -punkt funktionieren beide. Alle Eingaben bleiben in diesem Browser gespeichert.',
     result: 'Ergebnis',
-    resN: 'Drehzahl n', capped: '(begrenzt)', resVf: 'Vorschub vf (F)', vfCapped: '(begrenzt)', resVc: 'Effektive Schnittgeschwindigkeit vc', resNReq: 'Benötigte n (unbegrenzt)',
+    resN: 'Drehzahl n (S)', capped: '(begrenzt)', resVf: 'Vorschub vf (Fxy)', vfCapped: '(begrenzt)', resVc: 'Effektive Schnittgeschwindigkeit vc', resNReq: 'Benötigte n (unbegrenzt)',
     reset: 'Alle Felder zurücksetzen',
     clear: 'Leeren',
     choose: (k: string) => `— gespeichertes ${k === 'Werkzeug' ? 'Werkzeug' : 'Spindel'} wählen —`.replace('gespeichertes Spindel', 'gespeicherte Spindel'),

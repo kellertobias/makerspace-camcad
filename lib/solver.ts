@@ -3,6 +3,8 @@ export type VarKey = 'n' | 'vc' | 'd' | 'z' | 'fz' | 'vf';
 export interface VarDef {
   key: VarKey;
   symbol: string;
+  /** Other symbols used for the same quantity, e.g. G-code words. */
+  aliases?: string[];
   name: { de: string; en: string };
   unit: string;
   description: { de: string; en: string };
@@ -52,21 +54,23 @@ export const VARS: VarDef[] = [
   {
     key: 'n',
     symbol: 'n',
+    aliases: ['S'],
     name: { de: 'Drehzahl', en: 'Spindle speed' },
     unit: 'RPM (1/min)',
     description: {
-      en: 'Revolutions of the spindle per minute. n = (vc · 1000) / (π · d). Capped at the spindle maximum.',
-      de: 'Umdrehungen der Spindel pro Minute. n = (vc · 1000) / (π · d). Begrenzt auf die maximale Spindeldrehzahl.',
+      en: 'Revolutions of the spindle per minute; the S word in G-code. n = (vc · 1000) / (π · d). Capped at the spindle maximum.',
+      de: 'Umdrehungen der Spindel pro Minute; im G-Code das S-Wort. n = (vc · 1000) / (π · d). Begrenzt auf die maximale Spindeldrehzahl.',
     },
   },
   {
     key: 'vf',
     symbol: 'vf',
+    aliases: ['Fxy'],
     name: { de: 'Vorschubgeschwindigkeit', en: 'Feed rate' },
     unit: 'mm/min',
     description: {
-      en: 'Linear travel of the tool through the material. vf = n · z · fz. This is the F value for the CNC program.',
-      de: 'Lineare Bewegung des Werkzeugs durch das Material. vf = n · z · fz. Das ist der F-Wert im CNC-Programm.',
+      en: 'Linear travel of the tool through the material in XY. vf = n · z · fz. This is the F word (Fxy) in the CNC program.',
+      de: 'Lineare Bewegung des Werkzeugs durch das Material in XY. vf = n · z · fz. Das ist das F-Wort (Fxy) im CNC-Programm.',
     },
   },
 ];

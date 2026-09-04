@@ -41,6 +41,7 @@ h1 { font-size: 1.6rem; margin: 0 0 4px; }
 .field { display: flex; flex-direction: column; gap: 4px; }
 .field label { display: flex; align-items: baseline; gap: 8px; flex-wrap: wrap; }
 .sym { font-family: var(--mono); font-weight: 600; color: var(--accent); }
+.sym .alias { font-weight: 500; opacity: 0.75; }
 .name { font-weight: 600; }
 .name2 { color: var(--muted); font-weight: 500; }
 .name2::before { content: '· '; opacity: 0.6; }

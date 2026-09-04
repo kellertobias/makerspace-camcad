@@ -240,7 +240,7 @@ export default function Page() {
               <div className="field" key={v.key}>
                 <div className="ill"><Illustration k={v.key} flutes={flutes} s={s} /></div>
                 <label htmlFor={v.key}>
-                  <span className="sym">{v.symbol}</span>
+                  <span className="sym">{v.symbol}{v.aliases?.map((a) => <span className="alias" key={a}> = {a}</span>)}</span>
                   <span className="name">{v.name[lang]}</span>
                   <span className="name2">{v.name[o]}</span>
                   <span className="unit">{v.unit === 'RPM (1/min)' && lang === 'de' ? 'U/min' : v.unit}</span>
