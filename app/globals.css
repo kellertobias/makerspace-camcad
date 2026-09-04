@@ -106,3 +106,5 @@ input.computed { background: var(--computed); color: var(--computed-text); borde
   margin-top: 2px; }
 .suggest .v { font-family: var(--mono); color: var(--text); }
 .btn.small { padding: 3px 8px; font-size: 0.8rem; }
+
+.machineinfo { color: var(--muted); font-size: 0.85rem; margin: 0 0 12px; line-height: 1.5; }

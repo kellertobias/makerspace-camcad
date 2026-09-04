@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { VARS, solve, fmt, type Inputs, type VarKey } from '@/lib/solver';
 import {
-  loadSpindles, loadTools, newId, saveSpindles, saveTools, spindleLabel, toolLabel,
+  loadTools, newId, saveSpindles, seedSpindles, saveTools, spindleLabel, toolLabel,
   type SpindlePreset, type ToolPreset,
 } from '@/lib/presets';
 import { Illustration } from './Illustration';
@@ -11,7 +11,7 @@ import { t, other, type Lang } from '@/lib/i18n';
 import { PresetBar } from './PresetBar';
 import { Help } from './Help';
 
-const EMPTY: Inputs = { n: '', vc: '', d: '', z: '', fz: '', vf: '', nMax: '' };
+const EMPTY: Inputs = { n: '', vc: '', d: '', z: '', fz: '', vf: '', nMax: '', nMin: '', vfMax: '' };
 const STORAGE_KEY = 'cnc-milling-calc:v1';
 const LANG_KEY = 'cnc-milling-calc:lang';
 
@@ -46,7 +46,7 @@ export default function Page() {
       }
     } catch {}
     setTools(loadTools());
-    setSpindles(loadSpindles());
+    setSpindles(seedSpindles());
     try {
       const l = window.localStorage.getItem(LANG_KEY);
       if (l === 'de' || l === 'en') setLang(l);
@@ -123,12 +123,14 @@ export default function Page() {
   // ---- spindle presets ----------------------------------------------------
   const applySpindle = (id: string) => {
     setSpindleId(id);
-    const s = spindles.find((x) => x.id === id);
-    if (s) update('nMax', s.nMax);
+    const m = spindles.find((x) => x.id === id);
+    if (m) setInputs((prev) => ({ ...prev, nMax: m.nMax, nMin: m.nMin ?? '', vfMax: m.vfMax ?? '' }));
   };
   const saveSpindle = (name: string) => {
     const existing = spindles.find((s) => s.name === name);
-    const preset: SpindlePreset = { id: existing?.id ?? newId(), name, nMax: inputs.nMax };
+    const preset: SpindlePreset = {
+      id: existing?.id ?? newId(), name, nMax: inputs.nMax, nMin: inputs.nMin, vfMax: inputs.vfMax, info: existing?.info,
+    };
     const next = existing ? spindles.map((s) => (s.id === existing.id ? preset : s)) : [...spindles, preset];
     setSpindles(next);
     saveSpindles(next);
@@ -178,24 +180,38 @@ export default function Page() {
           onSelect={applySpindle}
           onSave={saveSpindle}
           onDelete={deleteSpindle}
-          canSave={inputs.nMax.trim() !== ''}
+          canSave={inputs.nMax.trim() !== '' || inputs.nMin.trim() !== '' || inputs.vfMax.trim() !== ''}
         />
-        <div className="field">
-          <label htmlFor="nMax">
-            <span className="sym">n<sub>max</sub></span>
-            <span className="name">{s.nMaxName}</span>
-            <span className="name2">{s.nMaxNameOther}</span>
-            <span className="unit">{lang === 'de' ? 'U/min' : 'RPM'}</span>
-          </label>
-          <span className="desc">{s.nMaxDesc}</span>
-          <input
-            id="nMax"
-            type="text"
-            inputMode="decimal"
-            placeholder="e.g. 24000"
-            value={inputs.nMax}
-            onChange={(e) => update('nMax', e.target.value)}
-          />
+        {(() => {
+          const m = spindles.find((x) => x.id === spindleId);
+          return m?.info ? (
+            <p className="machineinfo"><strong>{s.machineInfo}:</strong> {m.info}</p>
+          ) : null;
+        })()}
+        <div className="grid">
+          {([
+            ['nMax', s.nMaxName, s.nMaxNameOther, s.nMaxDesc, lang === 'de' ? 'U/min' : 'RPM', 'e.g. 24000'],
+            ['nMin', s.nMinName, s.nMinNameOther, s.nMinDesc, lang === 'de' ? 'U/min' : 'RPM', s.optional],
+            ['vfMax', s.vfMaxName, s.vfMaxNameOther, s.vfMaxDesc, 'mm/min', s.optional],
+          ] as const).map(([key, name, name2, desc, unit, ph]) => (
+            <div className="field" key={key}>
+              <label htmlFor={key}>
+                <span className="sym">{key === 'nMax' ? <>n<sub>max</sub></> : key === 'nMin' ? <>n<sub>min</sub></> : <>vf<sub>max</sub></>}</span>
+                <span className="name">{name}</span>
+                <span className="name2">{name2}</span>
+                <span className="unit">{unit}</span>
+              </label>
+              <span className="desc">{desc}</span>
+              <input
+                id={key}
+                type="text"
+                inputMode="decimal"
+                placeholder={ph}
+                value={inputs[key]}
+                onChange={(e) => update(key, e.target.value)}
+              />
+            </div>
+          ))}
         </div>
       </section>
 
@@ -278,7 +294,7 @@ export default function Page() {
             <div className="v">{fmt(sol.vars.n.value)}<span className="u">{lang === 'de' ? 'U/min' : 'RPM'}</span></div>
           </div>
           <div className="stat">
-            <div className="k">{s.resVf}</div>
+            <div className="k">{s.resVf}{sol.vfCapped ? ` ${s.vfCapped}` : ''}</div>
             <div className="v">{fmt(sol.vars.vf.value)}<span className="u">mm/min</span></div>
           </div>
           <div className="stat">

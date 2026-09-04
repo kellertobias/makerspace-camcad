@@ -71,7 +71,7 @@ export const VARS: VarDef[] = [
   },
 ];
 
-export type Inputs = Record<VarKey, string> & { nMax: string };
+export type Inputs = Record<VarKey, string> & { nMax: string; nMin: string; vfMax: string };
 
 export interface SolvedVar {
   value: number | null;
@@ -85,13 +85,17 @@ export interface Solution {
   capped: boolean;
   /** Effective cutting speed actually reached after capping n */
   vcEffective: number | null;
+  vfUncapped: number | null;
+  vfCapped: boolean;
   messages: Message[];
 }
 
 export type Message =
   | { kind: 'inconsistent-n'; nFromVc: number }
   | { kind: 'inconsistent-vf'; vfCalc: number }
-  | { kind: 'capped'; nUncapped: number; nMax: number };
+  | { kind: 'capped'; nUncapped: number; nMax: number }
+  | { kind: 'below-min'; n: number; nMin: number }
+  | { kind: 'vf-capped'; vfUncapped: number; vfMax: number };
 
 function parse(s: string): number | null {
   const t = s.trim().replace(',', '.');
@@ -113,6 +117,8 @@ export function solve(inputs: Inputs): Solution {
     }
   }
   const nMax = parse(inputs.nMax);
+  const nMin = parse(inputs.nMin);
+  const vfMax = parse(inputs.vfMax);
 
   const set = (k: VarKey, x: number) => {
     if (val[k] === undefined && Number.isFinite(x) && x > 0) {
@@ -168,13 +174,27 @@ export function solve(inputs: Inputs): Solution {
     messages.push({ kind: 'capped', nUncapped: nUncapped!, nMax });
   }
 
+  if (val.n !== undefined && nMin !== null && val.n < nMin) {
+    messages.push({ kind: 'below-min', n: val.n, nMin });
+  }
+
+  // Machine feed limit: the machine cannot move faster than vfMax.
+  const vfUncapped = val.vf ?? null;
+  let vfCapped = false;
+  if (val.vf !== undefined && vfMax !== null && val.vf > vfMax) {
+    vfCapped = true;
+    val.vf = vfMax;
+    src.vf = 'computed';
+    messages.push({ kind: 'vf-capped', vfUncapped: vfUncapped!, vfMax });
+  }
+
   const vcEffective = val.n !== undefined && val.d !== undefined ? (val.n * Math.PI * val.d) / 1000 : null;
 
   const vars = {} as Record<VarKey, SolvedVar>;
   for (const v of VARS) {
     vars[v.key] = val[v.key] !== undefined ? { value: val[v.key]!, source: src[v.key]! } : { value: null, source: 'missing' };
   }
-  return { vars, nUncapped, capped, vcEffective, messages };
+  return { vars, nUncapped, capped, vcEffective, vfUncapped, vfCapped, messages };
 }
 
 export function fmt(x: number | null | undefined, digits = 3): string {

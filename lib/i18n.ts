@@ -8,17 +8,25 @@ const strings = {
     title: 'CNC Milling Calculator',
     sub: 'Enter the values you know. Every value that can be derived from the rest is filled in automatically.',
     formulas: 'Formulas',
-    spindle: 'Spindle',
+    spindle: 'Machine & spindle',
     nMaxName: 'Maximum spindle speed',
     nMaxNameOther: 'Maximale Drehzahl',
     nMaxDesc: 'Maximum RPM of your milling motor. If the required speed exceeds this, the calculator uses the maximum instead and recalculates the feed rate from it.',
+    nMinName: 'Minimum spindle speed',
+    nMinNameOther: 'Minimale Drehzahl',
+    nMinDesc: 'Lowest RPM the spindle can run. Optional; you get a warning when the calculated speed is below it.',
+    vfMaxName: 'Maximum milling feed',
+    vfMaxNameOther: 'Max. Fräsgeschwindigkeit',
+    vfMaxDesc: 'Fastest feed the machine can mill with (XY). Optional; the feed rate is capped at this value.',
+    machineInfo: 'Machine data',
+    optional: 'optional',
     toolParams: 'Tool & parameters',
     toolHint: 'A saved tool stores diameter, flutes, and — if entered — cutting speed and feed per tooth.',
     given: 'given', calculated: 'calculated', unknown: 'unknown',
     placeholder: 'enter or leave empty',
     legend: 'Values entered by you are marked given; blue fields are calculated. Typing into a calculated field turns it into a given value. Decimal comma or point both work. Everything you enter is kept in this browser until you change it.',
     result: 'Result',
-    resN: 'Spindle speed n', capped: '(capped)', resVf: 'Feed rate vf (F)', resVc: 'Effective cutting speed vc', resNReq: 'Required n (uncapped)',
+    resN: 'Spindle speed n', capped: '(capped)', resVf: 'Feed rate vf (F)', vfCapped: '(capped)', resVc: 'Effective cutting speed vc', resNReq: 'Required n (uncapped)',
     reset: 'Reset all fields',
     clear: 'Clear',
     // preset bar
@@ -46,6 +54,8 @@ const strings = {
         case 'inconsistent-n': return `n, vc and d are all given but inconsistent: vc and d imply n ≈ ${fmt(m.nFromVc)} RPM.`;
         case 'inconsistent-vf': return `vf, n, z and fz are all given but inconsistent: n · z · fz = ${fmt(m.vfCalc)} mm/min.`;
         case 'capped': return `Required spindle speed ${fmt(m.nUncapped)} RPM exceeds the spindle maximum of ${fmt(m.nMax)} RPM. Using ${fmt(m.nMax)} RPM; feed rate recalculated from the capped speed.`;
+        case 'below-min': return `Spindle speed ${fmt(m.n)} RPM is below the machine minimum of ${fmt(m.nMin)} RPM. Use a larger cutting speed or a smaller tool, or run at ${fmt(m.nMin)} RPM and accept a higher vc.`;
+        case 'vf-capped': return `Feed rate ${fmt(m.vfUncapped)} mm/min exceeds the machine maximum of ${fmt(m.vfMax)} mm/min. Using ${fmt(m.vfMax)} mm/min; the effective feed per tooth is lower than entered.`;
       }
     },
   },
@@ -53,17 +63,25 @@ const strings = {
     title: 'CNC-Fräsrechner',
     sub: 'Gib die bekannten Werte ein. Alles, was sich daraus ableiten lässt, wird automatisch berechnet.',
     formulas: 'Formeln',
-    spindle: 'Spindel',
+    spindle: 'Maschine & Spindel',
     nMaxName: 'Maximale Drehzahl',
     nMaxNameOther: 'Maximum spindle speed',
-    nMaxDesc: 'Höchstdrehzahl deines Frässmotors. Liegt die benötigte Drehzahl darüber, rechnet der Rechner mit dem Maximum und passt den Vorschub entsprechend an.',
+    nMaxDesc: 'Höchstdrehzahl deines Fräsmotors. Liegt die benötigte Drehzahl darüber, rechnet der Rechner mit dem Maximum und passt den Vorschub entsprechend an.',
+    nMinName: 'Minimale Drehzahl',
+    nMinNameOther: 'Minimum spindle speed',
+    nMinDesc: 'Niedrigste Drehzahl, mit der die Spindel laufen kann. Optional; bei Unterschreitung erscheint eine Warnung.',
+    vfMaxName: 'Max. Fräsgeschwindigkeit',
+    vfMaxNameOther: 'Maximum milling feed',
+    vfMaxDesc: 'Schnellster Vorschub, mit dem die Maschine fräsen kann (XY). Optional; der Vorschub wird darauf begrenzt.',
+    machineInfo: 'Maschinendaten',
+    optional: 'optional',
     toolParams: 'Werkzeug & Parameter',
     toolHint: 'Ein gespeichertes Werkzeug enthält Durchmesser, Zähnezahl und – falls eingegeben – Schnittgeschwindigkeit und Zahnvorschub.',
     given: 'gegeben', calculated: 'berechnet', unknown: 'unbekannt',
     placeholder: 'eingeben oder leer lassen',
     legend: 'Von dir eingegebene Werte sind als gegeben markiert, blaue Felder sind berechnet. Tippst du in ein berechnetes Feld, wird es zu einem gegebenen Wert. Dezimalkomma und -punkt funktionieren beide. Alle Eingaben bleiben in diesem Browser gespeichert.',
     result: 'Ergebnis',
-    resN: 'Drehzahl n', capped: '(begrenzt)', resVf: 'Vorschub vf (F)', resVc: 'Effektive Schnittgeschwindigkeit vc', resNReq: 'Benötigte n (unbegrenzt)',
+    resN: 'Drehzahl n', capped: '(begrenzt)', resVf: 'Vorschub vf (F)', vfCapped: '(begrenzt)', resVc: 'Effektive Schnittgeschwindigkeit vc', resNReq: 'Benötigte n (unbegrenzt)',
     reset: 'Alle Felder zurücksetzen',
     clear: 'Leeren',
     choose: (k: string) => `— gespeichertes ${k === 'Werkzeug' ? 'Werkzeug' : 'Spindel'} wählen —`.replace('gespeichertes Spindel', 'gespeicherte Spindel'),
@@ -89,6 +107,8 @@ const strings = {
         case 'inconsistent-n': return `n, vc und d sind alle gegeben, passen aber nicht zusammen: aus vc und d folgt n ≈ ${fmt(m.nFromVc)} U/min.`;
         case 'inconsistent-vf': return `vf, n, z und fz sind alle gegeben, passen aber nicht zusammen: n · z · fz = ${fmt(m.vfCalc)} mm/min.`;
         case 'capped': return `Die benötigte Drehzahl ${fmt(m.nUncapped)} U/min überschreitet das Spindelmaximum von ${fmt(m.nMax)} U/min. Es wird mit ${fmt(m.nMax)} U/min gerechnet; der Vorschub wurde entsprechend neu berechnet.`;
+        case 'below-min': return `Die Drehzahl ${fmt(m.n)} U/min liegt unter dem Maschinenminimum von ${fmt(m.nMin)} U/min. Höhere Schnittgeschwindigkeit oder kleineres Werkzeug wählen, oder mit ${fmt(m.nMin)} U/min fahren und eine höhere vc in Kauf nehmen.`;
+        case 'vf-capped': return `Der Vorschub ${fmt(m.vfUncapped)} mm/min überschreitet das Maschinenmaximum von ${fmt(m.vfMax)} mm/min. Es wird mit ${fmt(m.vfMax)} mm/min gerechnet; der effektive Zahnvorschub ist dann kleiner als eingegeben.`;
       }
     },
   },
