@@ -63,3 +63,9 @@ input.computed { background: var(--computed); color: var(--computed-text); borde
 .stat .v { font-family: var(--mono); font-size: 1.25rem; font-weight: 600; }
 .stat .u { color: var(--muted); font-size: 0.8rem; margin-left: 4px; }
 .hint { color: var(--muted); font-size: 0.85rem; margin-top: 8px; }
+
+.field { position: relative; }
+.ill { color: var(--text); display: flex; justify-content: center; padding: 4px 0 2px;
+  border: 1px solid var(--border); border-radius: 8px; background: color-mix(in srgb, var(--card) 85%, var(--bg)); }
+.ill svg { display: block; max-width: 220px; }
+.ill-accent { color: var(--accent); }

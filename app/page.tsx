@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useState } from 'react';
 import { VARS, solve, fmt, type Inputs, type VarKey } from '@/lib/solver';
+import { Illustration } from './Illustration';
 
 const EMPTY: Inputs = { n: '', vc: '', d: '', z: '', fz: '', vf: '', nMax: '' };
 const STORAGE_KEY = 'cnc-milling-calc:v1';
@@ -76,6 +77,7 @@ export default function Page() {
             const shown = isInput ? inputs[v.key] : s.value !== null ? fmt(s.value) : '';
             return (
               <div className="field" key={v.key}>
+                <div className="ill"><Illustration k={v.key} /></div>
                 <label htmlFor={v.key}>
                   <span className="sym">{v.symbol}</span>
                   <span className="name">{v.name}</span>

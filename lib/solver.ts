@@ -10,27 +10,11 @@ export interface VarDef {
 
 export const VARS: VarDef[] = [
   {
-    key: 'vc',
-    symbol: 'vc',
-    name: 'Cutting speed',
-    unit: 'm/min',
-    description:
-      'Schnittgeschwindigkeit. Surface speed of the cutting edge relative to the workpiece. Depends on the tool and workpiece material (e.g. aluminium with carbide ≈ 200–500 m/min).',
-  },
-  {
     key: 'd',
     symbol: 'd',
     name: 'Tool diameter',
     unit: 'mm',
     description: 'Fräserdurchmesser. Cutting diameter of the milling bit.',
-  },
-  {
-    key: 'n',
-    symbol: 'n',
-    name: 'Spindle speed',
-    unit: 'RPM (1/min)',
-    description:
-      'Drehzahl. Revolutions of the spindle per minute. n = (vc · 1000) / (π · d). Capped at the spindle maximum.',
   },
   {
     key: 'z',
@@ -40,12 +24,28 @@ export const VARS: VarDef[] = [
     description: 'Zähnezahl / Schneidenanzahl. Number of cutting edges on the tool.',
   },
   {
+    key: 'vc',
+    symbol: 'vc',
+    name: 'Cutting speed',
+    unit: 'm/min',
+    description:
+      'Schnittgeschwindigkeit. Surface speed of the cutting edge relative to the workpiece. Depends on the tool and workpiece material (e.g. aluminium with carbide ≈ 200–500 m/min).',
+  },
+  {
     key: 'fz',
     symbol: 'fz',
     name: 'Feed per tooth',
     unit: 'mm/tooth',
     description:
       'Zahnvorschub. Distance the tool advances per cutting edge and revolution — the chip thickness each flute takes.',
+  },
+  {
+    key: 'n',
+    symbol: 'n',
+    name: 'Spindle speed',
+    unit: 'RPM (1/min)',
+    description:
+      'Drehzahl. Revolutions of the spindle per minute. n = (vc · 1000) / (π · d). Capped at the spindle maximum.',
   },
   {
     key: 'vf',
