@@ -1,0 +1,82 @@
+import { fmt, type Message } from './solver';
+
+export type Lang = 'de' | 'en';
+export const other = (l: Lang): Lang => (l === 'de' ? 'en' : 'de');
+
+const strings = {
+  en: {
+    title: 'CNC Milling Calculator',
+    sub: 'Enter the values you know. Every value that can be derived from the rest is filled in automatically.',
+    formulas: 'Formulas',
+    spindle: 'Spindle',
+    nMaxName: 'Maximum spindle speed',
+    nMaxNameOther: 'Maximale Drehzahl',
+    nMaxDesc: 'Maximum RPM of your milling motor. If the required speed exceeds this, the calculator uses the maximum instead and recalculates the feed rate from it.',
+    toolParams: 'Tool & parameters',
+    toolHint: 'A saved tool stores diameter, flutes, and — if entered — cutting speed and feed per tooth.',
+    given: 'given', calculated: 'calculated', unknown: 'unknown',
+    placeholder: 'enter or leave empty',
+    legend: 'Values entered by you are marked given; blue fields are calculated. Typing into a calculated field turns it into a given value. Decimal comma or point both work. Everything you enter is kept in this browser until you change it.',
+    result: 'Result',
+    resN: 'Spindle speed n', capped: '(capped)', resVf: 'Feed rate vf (F)', resVc: 'Effective cutting speed vc', resNReq: 'Required n (uncapped)',
+    reset: 'Reset all fields',
+    clear: 'Clear',
+    // preset bar
+    choose: (k: string) => `— choose a saved ${k} —`,
+    none: (k: string) => `no saved ${k}s yet`,
+    namePh: (k: string) => `${k} name`,
+    save: 'Save', cancel: 'Cancel', update: 'Update', saveAs: 'Save as…', del: 'Delete',
+    updateTitle: 'Overwrite with the current values',
+    confirmDelete: (k: string, n: string) => `Delete ${k} "${n}"?`,
+    kindTool: 'tool', kindSpindle: 'spindle',
+    savedLabel: (k: string) => `Saved ${k}s`,
+    flutesAbbr: 'fl.',
+    // illustration captions
+    capVc: 'speed at the cutting edge', capFz: 'advance per tooth = chip thickness', capVf: 'tool travel through the material', capN: 'n rev/min',
+    msg: (m: Message): string => {
+      switch (m.kind) {
+        case 'inconsistent-n': return `n, vc and d are all given but inconsistent: vc and d imply n ≈ ${fmt(m.nFromVc)} RPM.`;
+        case 'inconsistent-vf': return `vf, n, z and fz are all given but inconsistent: n · z · fz = ${fmt(m.vfCalc)} mm/min.`;
+        case 'capped': return `Required spindle speed ${fmt(m.nUncapped)} RPM exceeds the spindle maximum of ${fmt(m.nMax)} RPM. Using ${fmt(m.nMax)} RPM; feed rate recalculated from the capped speed.`;
+      }
+    },
+  },
+  de: {
+    title: 'CNC-Fräsrechner',
+    sub: 'Gib die bekannten Werte ein. Alles, was sich daraus ableiten lässt, wird automatisch berechnet.',
+    formulas: 'Formeln',
+    spindle: 'Spindel',
+    nMaxName: 'Maximale Drehzahl',
+    nMaxNameOther: 'Maximum spindle speed',
+    nMaxDesc: 'Höchstdrehzahl deines Frässmotors. Liegt die benötigte Drehzahl darüber, rechnet der Rechner mit dem Maximum und passt den Vorschub entsprechend an.',
+    toolParams: 'Werkzeug & Parameter',
+    toolHint: 'Ein gespeichertes Werkzeug enthält Durchmesser, Zähnezahl und – falls eingegeben – Schnittgeschwindigkeit und Zahnvorschub.',
+    given: 'gegeben', calculated: 'berechnet', unknown: 'unbekannt',
+    placeholder: 'eingeben oder leer lassen',
+    legend: 'Von dir eingegebene Werte sind als gegeben markiert, blaue Felder sind berechnet. Tippst du in ein berechnetes Feld, wird es zu einem gegebenen Wert. Dezimalkomma und -punkt funktionieren beide. Alle Eingaben bleiben in diesem Browser gespeichert.',
+    result: 'Ergebnis',
+    resN: 'Drehzahl n', capped: '(begrenzt)', resVf: 'Vorschub vf (F)', resVc: 'Effektive Schnittgeschwindigkeit vc', resNReq: 'Benötigte n (unbegrenzt)',
+    reset: 'Alle Felder zurücksetzen',
+    clear: 'Leeren',
+    choose: (k: string) => `— gespeichertes ${k === 'Werkzeug' ? 'Werkzeug' : 'Spindel'} wählen —`.replace('gespeichertes Spindel', 'gespeicherte Spindel'),
+    none: (k: string) => (k === 'Werkzeug' ? 'noch keine Werkzeuge gespeichert' : 'noch keine Spindeln gespeichert'),
+    namePh: (k: string) => `Name (${k})`,
+    save: 'Speichern', cancel: 'Abbrechen', update: 'Aktualisieren', saveAs: 'Speichern als…', del: 'Löschen',
+    updateTitle: 'Mit den aktuellen Werten überschreiben',
+    confirmDelete: (k: string, n: string) => `${k} „${n}“ löschen?`,
+    kindTool: 'Werkzeug', kindSpindle: 'Spindel',
+    savedLabel: (k: string) => (k === 'Werkzeug' ? 'Gespeicherte Werkzeuge' : 'Gespeicherte Spindeln'),
+    flutesAbbr: 'Schn.',
+    capVc: 'Geschwindigkeit an der Schneide', capFz: 'Weg pro Zahn = Spandicke', capVf: 'Werkzeugweg durchs Material', capN: 'n U/min',
+    msg: (m: Message): string => {
+      switch (m.kind) {
+        case 'inconsistent-n': return `n, vc und d sind alle gegeben, passen aber nicht zusammen: aus vc und d folgt n ≈ ${fmt(m.nFromVc)} U/min.`;
+        case 'inconsistent-vf': return `vf, n, z und fz sind alle gegeben, passen aber nicht zusammen: n · z · fz = ${fmt(m.vfCalc)} mm/min.`;
+        case 'capped': return `Die benötigte Drehzahl ${fmt(m.nUncapped)} U/min überschreitet das Spindelmaximum von ${fmt(m.nMax)} U/min. Es wird mit ${fmt(m.nMax)} U/min gerechnet; der Vorschub wurde entsprechend neu berechnet.`;
+      }
+    },
+  },
+};
+
+export type Strings = (typeof strings)['en'];
+export const t = (lang: Lang): Strings => strings[lang] as Strings;

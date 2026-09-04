@@ -3,57 +3,71 @@ export type VarKey = 'n' | 'vc' | 'd' | 'z' | 'fz' | 'vf';
 export interface VarDef {
   key: VarKey;
   symbol: string;
-  name: string;
+  name: { de: string; en: string };
   unit: string;
-  description: string;
+  description: { de: string; en: string };
 }
 
 export const VARS: VarDef[] = [
   {
     key: 'd',
     symbol: 'd',
-    name: 'Tool diameter',
+    name: { de: 'Fräserdurchmesser', en: 'Tool diameter' },
     unit: 'mm',
-    description: 'Fräserdurchmesser. Cutting diameter of the milling bit.',
+    description: {
+      en: 'Cutting diameter of the milling bit.',
+      de: 'Schneidender Durchmesser des Fräsers.',
+    },
   },
   {
     key: 'z',
     symbol: 'z',
-    name: 'Number of flutes',
+    name: { de: 'Zähnezahl', en: 'Number of flutes' },
     unit: '',
-    description: 'Zähnezahl / Schneidenanzahl. Number of cutting edges on the tool.',
+    description: {
+      en: 'Number of cutting edges (flutes) on the tool.',
+      de: 'Anzahl der Schneiden des Fräsers.',
+    },
   },
   {
     key: 'vc',
     symbol: 'vc',
-    name: 'Cutting speed',
+    name: { de: 'Schnittgeschwindigkeit', en: 'Cutting speed' },
     unit: 'm/min',
-    description:
-      'Schnittgeschwindigkeit. Surface speed of the cutting edge relative to the workpiece. Depends on the tool and workpiece material (e.g. aluminium with carbide ≈ 200–500 m/min).',
+    description: {
+      en: 'Surface speed of the cutting edge relative to the workpiece. Depends on tool and workpiece material (e.g. aluminium with carbide ≈ 200–500 m/min).',
+      de: 'Geschwindigkeit der Schneide gegenüber dem Werkstück. Abhängig von Werkzeug- und Werkstückmaterial (z. B. Aluminium mit Hartmetall ≈ 200–500 m/min).',
+    },
   },
   {
     key: 'fz',
     symbol: 'fz',
-    name: 'Feed per tooth',
+    name: { de: 'Zahnvorschub', en: 'Feed per tooth' },
     unit: 'mm/tooth',
-    description:
-      'Zahnvorschub. Distance the tool advances per cutting edge and revolution — the chip thickness each flute takes.',
+    description: {
+      en: 'Distance the tool advances per cutting edge and revolution — the chip thickness each flute takes.',
+      de: 'Weg, den das Werkzeug pro Schneide und Umdrehung vorrückt – die Spandicke, die jede Schneide abnimmt.',
+    },
   },
   {
     key: 'n',
     symbol: 'n',
-    name: 'Spindle speed',
+    name: { de: 'Drehzahl', en: 'Spindle speed' },
     unit: 'RPM (1/min)',
-    description:
-      'Drehzahl. Revolutions of the spindle per minute. n = (vc · 1000) / (π · d). Capped at the spindle maximum.',
+    description: {
+      en: 'Revolutions of the spindle per minute. n = (vc · 1000) / (π · d). Capped at the spindle maximum.',
+      de: 'Umdrehungen der Spindel pro Minute. n = (vc · 1000) / (π · d). Begrenzt auf die maximale Spindeldrehzahl.',
+    },
   },
   {
     key: 'vf',
     symbol: 'vf',
-    name: 'Feed rate',
+    name: { de: 'Vorschubgeschwindigkeit', en: 'Feed rate' },
     unit: 'mm/min',
-    description:
-      'Vorschubgeschwindigkeit. Linear travel of the tool through the material. vf = n · z · fz. This is the F value for the CNC program.',
+    description: {
+      en: 'Linear travel of the tool through the material. vf = n · z · fz. This is the F value for the CNC program.',
+      de: 'Lineare Bewegung des Werkzeugs durch das Material. vf = n · z · fz. Das ist der F-Wert im CNC-Programm.',
+    },
   },
 ];
 
@@ -71,8 +85,13 @@ export interface Solution {
   capped: boolean;
   /** Effective cutting speed actually reached after capping n */
   vcEffective: number | null;
-  messages: string[];
+  messages: Message[];
 }
+
+export type Message =
+  | { kind: 'inconsistent-n'; nFromVc: number }
+  | { kind: 'inconsistent-vf'; vfCalc: number }
+  | { kind: 'capped'; nUncapped: number; nMax: number };
 
 function parse(s: string): number | null {
   const t = s.trim().replace(',', '.');
@@ -84,7 +103,7 @@ function parse(s: string): number | null {
 export function solve(inputs: Inputs): Solution {
   const val: Partial<Record<VarKey, number>> = {};
   const src: Partial<Record<VarKey, 'input' | 'computed'>> = {};
-  const messages: string[] = [];
+  const messages: Message[] = [];
 
   for (const v of VARS) {
     const p = parse(inputs[v.key]);
@@ -124,13 +143,13 @@ export function solve(inputs: Inputs): Solution {
   if (val.n !== undefined && val.vc !== undefined && val.d !== undefined && src.n === 'input' && src.vc === 'input' && src.d === 'input') {
     const nFromVc = (val.vc * 1000) / (Math.PI * val.d);
     if (Math.abs(nFromVc - val.n) / val.n > 0.01) {
-      messages.push(`n, vc and d are all given but inconsistent: vc and d imply n ≈ ${fmt(nFromVc)} RPM.`);
+      messages.push({ kind: 'inconsistent-n', nFromVc });
     }
   }
   if (val.vf !== undefined && val.n !== undefined && val.z !== undefined && val.fz !== undefined && src.vf === 'input' && src.n === 'input' && src.z === 'input' && src.fz === 'input') {
     const vfCalc = val.n * val.z * val.fz;
     if (Math.abs(vfCalc - val.vf) / val.vf > 0.01) {
-      messages.push(`vf, n, z and fz are all given but inconsistent: n · z · fz = ${fmt(vfCalc)} mm/min.`);
+      messages.push({ kind: 'inconsistent-vf', vfCalc });
     }
   }
 
@@ -146,9 +165,7 @@ export function solve(inputs: Inputs): Solution {
       val.vf = val.n * val.z * val.fz;
       src.vf = 'computed';
     }
-    messages.push(
-      `Required spindle speed ${fmt(nUncapped!)} RPM exceeds the spindle maximum of ${fmt(nMax)} RPM. Using ${fmt(nMax)} RPM; feed rate recalculated from the capped speed.`,
-    );
+    messages.push({ kind: 'capped', nUncapped: nUncapped!, nMax });
   }
 
   const vcEffective = val.n !== undefined && val.d !== undefined ? (val.n * Math.PI * val.d) / 1000 : null;

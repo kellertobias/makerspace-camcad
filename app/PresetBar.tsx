@@ -1,6 +1,7 @@
 'use client';
 
 import { useState } from 'react';
+import type { Strings } from '@/lib/i18n';
 
 interface Preset { id: string; name: string }
 
@@ -13,9 +14,10 @@ interface Props<T extends Preset> {
   onSave: (name: string) => void;
   onDelete: (id: string) => void;
   canSave: boolean;
+  s: Strings;
 }
 
-export function PresetBar<T extends Preset>({ kind, presets, selectedId, label, onSelect, onSave, onDelete, canSave }: Props<T>) {
+export function PresetBar<T extends Preset>({ kind, presets, selectedId, label, onSelect, onSave, onDelete, canSave, s }: Props<T>) {
   const [naming, setNaming] = useState(false);
   const [name, setName] = useState('');
   const selected = presets.find((p) => p.id === selectedId);
@@ -31,11 +33,11 @@ export function PresetBar<T extends Preset>({ kind, presets, selectedId, label, 
   return (
     <div className="presets">
       <select
-        aria-label={`Saved ${kind}s`}
+        aria-label={s.savedLabel(kind)}
         value={selectedId}
         onChange={(e) => onSelect(e.target.value)}
       >
-        <option value="">{presets.length ? `— choose a saved ${kind} —` : `no saved ${kind}s yet`}</option>
+        <option value="">{presets.length ? s.choose(kind) : s.none(kind)}</option>
         {presets.map((p) => (
           <option key={p.id} value={p.id}>{label(p)}</option>
         ))}
@@ -45,27 +47,27 @@ export function PresetBar<T extends Preset>({ kind, presets, selectedId, label, 
           <input
             type="text"
             autoFocus
-            placeholder={`${kind} name`}
+            placeholder={s.namePh(kind)}
             value={name}
             onChange={(e) => setName(e.target.value)}
             onKeyDown={(e) => { if (e.key === 'Enter') commit(); if (e.key === 'Escape') setNaming(false); }}
           />
-          <button type="button" className="btn primary" onClick={commit} disabled={!name.trim()}>Save</button>
-          <button type="button" className="btn" onClick={() => setNaming(false)}>Cancel</button>
+          <button type="button" className="btn primary" onClick={commit} disabled={!name.trim()}>{s.save}</button>
+          <button type="button" className="btn" onClick={() => setNaming(false)}>{s.cancel}</button>
         </span>
       ) : (
         <span className="row">
           {selected && (
-            <button type="button" className="btn" onClick={() => onSave(selected.name)} disabled={!canSave} title="Overwrite with the current values">
-              Update
+            <button type="button" className="btn" onClick={() => onSave(selected.name)} disabled={!canSave} title={s.updateTitle}>
+              {s.update}
             </button>
           )}
-          <button type="button" className="btn" onClick={() => { setName(selected?.name ? '' : ''); setNaming(true); }} disabled={!canSave}>
-            Save as…
+          <button type="button" className="btn" onClick={() => { setName(''); setNaming(true); }} disabled={!canSave}>
+            {s.saveAs}
           </button>
           {selected && (
-            <button type="button" className="btn danger" onClick={() => { if (confirm(`Delete ${kind} "${selected.name}"?`)) onDelete(selected.id); }}>
-              Delete
+            <button type="button" className="btn danger" onClick={() => { if (confirm(s.confirmDelete(kind, selected.name))) onDelete(selected.id); }}>
+              {s.del}
             </button>
           )}
         </span>

@@ -1,4 +1,5 @@
 import type { VarKey } from '@/lib/solver';
+import type { Strings } from '@/lib/i18n';
 
 const common = {
   width: '100%',
@@ -57,7 +58,7 @@ const arc = (cx: number, cy: number, r: number, a0: number, a1: number) => {
   return `M ${p(a0)} A ${r} ${r} 0 ${large} 1 ${p(a1)}`;
 };
 
-export function Illustration({ k, flutes }: { k: VarKey; flutes?: number }) {
+export function Illustration({ k, flutes, s }: { k: VarKey; flutes?: number; s: Strings }) {
   const z = flutes ?? 4;
   switch (k) {
     case 'd':
@@ -93,7 +94,7 @@ export function Illustration({ k, flutes }: { k: VarKey; flutes?: number }) {
           <path d={arc(60, 42, 26, -Math.PI / 2 - 1.1, -Math.PI / 2)} className="ill-accent" />
           <Arrow x1={60} y1={16} x2={82} y2={16} accent />
           <text x={88} y={19} fontSize={10} fill="currentColor" stroke="none" className="ill-accent">vc</text>
-          <text x={60} y={80} textAnchor="middle" fontSize={8} fill="currentColor" stroke="none" opacity={0.7}>speed at the cutting edge</text>
+          <text x={60} y={80} textAnchor="middle" fontSize={8} fill="currentColor" stroke="none" opacity={0.7}>{s.capVc}</text>
         </svg>
       );
     case 'n':
@@ -102,7 +103,7 @@ export function Illustration({ k, flutes }: { k: VarKey; flutes?: number }) {
           <ToolFace flutes={z} />
           <path d={arc(60, 42, 34, Math.PI * 0.75, Math.PI * 2.25)} className="ill-accent" />
           <Arrow x1={37.5} y1={65.5} x2={35.5} y2={66.5} accent />
-          <text x={60} y={80} textAnchor="middle" fontSize={9} fill="currentColor" stroke="none" className="ill-accent">n rev/min</text>
+          <text x={60} y={80} textAnchor="middle" fontSize={9} fill="currentColor" stroke="none" className="ill-accent">{s.capN}</text>
         </svg>
       );
     case 'fz': {
@@ -118,7 +119,7 @@ export function Illustration({ k, flutes }: { k: VarKey; flutes?: number }) {
           <line x1={62} y1={6} x2={62} y2={48} strokeDasharray="2 2" opacity={0.6} />
           <Arrow x1={44} y1={12} x2={61} y2={12} accent />
           <text x={72} y={15} fontSize={10} fill="currentColor" stroke="none" className="ill-accent">fz</text>
-          <text x={60} y={66} textAnchor="middle" fontSize={8} fill="currentColor" stroke="none" opacity={0.7}>advance per tooth = chip thickness</text>
+          <text x={60} y={66} textAnchor="middle" fontSize={8} fill="currentColor" stroke="none" opacity={0.7}>{s.capFz}</text>
         </svg>
       );
     }
@@ -134,7 +135,7 @@ export function Illustration({ k, flutes }: { k: VarKey; flutes?: number }) {
           <path d="M 8 58 L 44 58" className="ill-accent" strokeWidth={3} opacity={0.6} />
           <Arrow x1={68} y1={30} x2={98} y2={30} accent />
           <text x={83} y={25} textAnchor="middle" fontSize={10} fill="currentColor" stroke="none" className="ill-accent">vf</text>
-          <text x={60} y={66} textAnchor="middle" fontSize={8} fill="currentColor" stroke="none" opacity={0.7}>tool travel through the material</text>
+          <text x={60} y={66} textAnchor="middle" fontSize={8} fill="currentColor" stroke="none" opacity={0.7}>{s.capVf}</text>
         </svg>
       );
   }

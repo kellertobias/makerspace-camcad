@@ -7,10 +7,12 @@ import {
   type SpindlePreset, type ToolPreset,
 } from '@/lib/presets';
 import { Illustration } from './Illustration';
+import { t, other, type Lang } from '@/lib/i18n';
 import { PresetBar } from './PresetBar';
 
 const EMPTY: Inputs = { n: '', vc: '', d: '', z: '', fz: '', vf: '', nMax: '' };
 const STORAGE_KEY = 'cnc-milling-calc:v1';
+const LANG_KEY = 'cnc-milling-calc:lang';
 
 interface Persisted {
   inputs: Inputs;
@@ -25,6 +27,9 @@ export default function Page() {
   const [toolId, setToolId] = useState('');
   const [spindleId, setSpindleId] = useState('');
   const [loaded, setLoaded] = useState(false);
+  const [lang, setLang] = useState<Lang>('de');
+  const s = t(lang);
+  const o = other(lang);
 
   // Restore everything once on the client (after hydration, so the static HTML matches).
   useEffect(() => {
@@ -41,6 +46,10 @@ export default function Page() {
     } catch {}
     setTools(loadTools());
     setSpindles(loadSpindles());
+    try {
+      const l = window.localStorage.getItem(LANG_KEY);
+      if (l === 'de' || l === 'en') setLang(l);
+    } catch {}
     setLoaded(true);
   }, []);
 
@@ -58,6 +67,12 @@ export default function Page() {
     const z = sol.vars.z.value;
     return z && Number.isFinite(z) ? Math.max(1, Math.min(16, Math.round(z))) : undefined;
   }, [sol]);
+
+  const toggleLang = () => {
+    const next = other(lang);
+    setLang(next);
+    try { window.localStorage.setItem(LANG_KEY, next); } catch {}
+  };
 
   const update = (key: keyof Inputs, value: string) =>
     setInputs((prev) => ({ ...prev, [key]: value }));
@@ -122,13 +137,23 @@ export default function Page() {
 
   return (
     <main>
-      <h1>CNC Milling Calculator</h1>
-      <p className="sub">
-        Enter the values you know. Every value that can be derived from the rest is filled in automatically.
-      </p>
+      <div className="topbar">
+        <h1>{s.title}</h1>
+        <button
+          type="button"
+          className={`langbtn${loaded ? '' : ' pending'}`}
+          onClick={toggleLang}
+          title={lang === 'de' ? 'Switch to English' : 'Auf Deutsch umschalten'}
+          aria-label={lang === 'de' ? 'Switch to English' : 'Auf Deutsch umschalten'}
+        >
+          <span className={lang === 'de' ? 'flag active' : 'flag'}>🇩🇪</span>
+          <span className={lang === 'en' ? 'flag active' : 'flag'}>🇬🇧</span>
+        </button>
+      </div>
+      <p className="sub">{s.sub}</p>
 
       <section className="card">
-        <h2>Formulas</h2>
+        <h2>{s.formulas}</h2>
         <div className="formulas">
           <span>n = (vc · 1000) / (π · d)</span>
           <span>vf = n · z · fz</span>
@@ -137,12 +162,13 @@ export default function Page() {
       </section>
 
       <section className="card">
-        <h2>Spindle</h2>
+        <h2>{s.spindle}</h2>
         <PresetBar
-          kind="spindle"
+          kind={s.kindSpindle}
           presets={spindles}
           selectedId={spindleId}
-          label={spindleLabel}
+          label={(p) => spindleLabel(p, lang === 'de' ? 'U/min' : 'RPM')}
+          s={s}
           onSelect={applySpindle}
           onSave={saveSpindle}
           onDelete={deleteSpindle}
@@ -151,13 +177,11 @@ export default function Page() {
         <div className="field">
           <label htmlFor="nMax">
             <span className="sym">n<sub>max</sub></span>
-            <span className="name">Maximum spindle speed</span>
-            <span className="unit">RPM</span>
+            <span className="name">{s.nMaxName}</span>
+            <span className="name2">{s.nMaxNameOther}</span>
+            <span className="unit">{lang === 'de' ? 'U/min' : 'RPM'}</span>
           </label>
-          <span className="desc">
-            Maximale Drehzahl of your milling motor. If the required speed exceeds this, the calculator
-            uses the maximum instead and recalculates the feed rate from it.
-          </span>
+          <span className="desc">{s.nMaxDesc}</span>
           <input
             id="nMax"
             type="text"
@@ -170,50 +194,52 @@ export default function Page() {
       </section>
 
       <section className="card">
-        <h2>Tool &amp; parameters</h2>
+        <h2>{s.toolParams}</h2>
         <PresetBar
-          kind="tool"
+          kind={s.kindTool}
           presets={tools}
           selectedId={toolId}
-          label={toolLabel}
+          label={(p) => toolLabel(p, s.flutesAbbr)}
+          s={s}
           onSelect={applyTool}
           onSave={saveTool}
           onDelete={deleteTool}
           canSave={inputs.d.trim() !== '' || inputs.z.trim() !== ''}
         />
         <p className="hint" style={{ marginTop: 0 }}>
-          A saved tool stores diameter, flutes, and — if entered — cutting speed and feed per tooth.
+          {s.toolHint}
         </p>
         <div className="grid">
           {VARS.map((v) => {
-            const s = sol.vars[v.key];
+            const sv = sol.vars[v.key];
             const isInput = inputs[v.key].trim() !== '';
-            const shown = isInput ? inputs[v.key] : s.value !== null ? fmt(s.value) : '';
+            const shown = isInput ? inputs[v.key] : sv.value !== null ? fmt(sv.value) : '';
             return (
               <div className="field" key={v.key}>
-                <div className="ill"><Illustration k={v.key} flutes={flutes} /></div>
+                <div className="ill"><Illustration k={v.key} flutes={flutes} s={s} /></div>
                 <label htmlFor={v.key}>
                   <span className="sym">{v.symbol}</span>
-                  <span className="name">{v.name}</span>
-                  <span className="unit">{v.unit}</span>
+                  <span className="name">{v.name[lang]}</span>
+                  <span className="name2">{v.name[o]}</span>
+                  <span className="unit">{v.unit === 'RPM (1/min)' && lang === 'de' ? 'U/min' : v.unit}</span>
                 </label>
-                <span className="desc">{v.description}</span>
+                <span className="desc">{v.description[lang]}</span>
                 <div className="row">
                   <input
                     id={v.key}
                     type="text"
                     inputMode="decimal"
-                    className={!isInput && s.source === 'computed' ? 'computed' : ''}
-                    placeholder={isInput ? '' : s.source === 'computed' ? '' : 'enter or leave empty'}
+                    className={!isInput && sv.source === 'computed' ? 'computed' : ''}
+                    placeholder={isInput || sv.source === 'computed' ? '' : s.placeholder}
                     value={shown}
                     onChange={(e) => update(v.key as VarKey, e.target.value)}
                     onFocus={(e) => { if (!isInput) e.target.select(); }}
                   />
-                  <span className={`badge ${isInput ? 'input' : s.source}`}>
-                    {isInput ? 'given' : s.source === 'computed' ? 'calculated' : 'unknown'}
+                  <span className={`badge ${isInput ? 'input' : sv.source}`}>
+                    {isInput ? s.given : sv.source === 'computed' ? s.calculated : s.unknown}
                   </span>
                   {isInput && (
-                    <button className="clear" type="button" onClick={() => update(v.key as VarKey, '')} title="Clear">
+                    <button className="clear" type="button" onClick={() => update(v.key as VarKey, '')} title={s.clear}>
                       ✕
                     </button>
                   )}
@@ -223,39 +249,35 @@ export default function Page() {
           })}
         </div>
         {sol.messages.map((m) => (
-          <div className="warn" key={m}>{m}</div>
+          <div className="warn" key={m.kind}>{s.msg(m)}</div>
         ))}
-        <p className="hint">
-          Values entered by you are marked <em>given</em>; blue fields are <em>calculated</em>. Typing into a calculated
-          field turns it into a given value. Decimal comma or point both work. Everything you enter is kept in this
-          browser until you change it.
-        </p>
+        <p className="hint">{s.legend}</p>
       </section>
 
       <section className="card">
-        <h2>Result</h2>
+        <h2>{s.result}</h2>
         <div className="summary">
           <div className="stat">
-            <div className="k">Spindle speed n{sol.capped ? ' (capped)' : ''}</div>
-            <div className="v">{fmt(sol.vars.n.value)}<span className="u">RPM</span></div>
+            <div className="k">{s.resN}{sol.capped ? ` ${s.capped}` : ''}</div>
+            <div className="v">{fmt(sol.vars.n.value)}<span className="u">{lang === 'de' ? 'U/min' : 'RPM'}</span></div>
           </div>
           <div className="stat">
-            <div className="k">Feed rate vf (F)</div>
+            <div className="k">{s.resVf}</div>
             <div className="v">{fmt(sol.vars.vf.value)}<span className="u">mm/min</span></div>
           </div>
           <div className="stat">
-            <div className="k">Effective cutting speed vc</div>
+            <div className="k">{s.resVc}</div>
             <div className="v">{fmt(sol.vcEffective)}<span className="u">m/min</span></div>
           </div>
           {sol.capped && (
             <div className="stat">
-              <div className="k">Required n (uncapped)</div>
-              <div className="v">{fmt(sol.nUncapped)}<span className="u">RPM</span></div>
+              <div className="k">{s.resNReq}</div>
+              <div className="v">{fmt(sol.nUncapped)}<span className="u">{lang === 'de' ? 'U/min' : 'RPM'}</span></div>
             </div>
           )}
         </div>
         <p className="hint">
-          <button className="clear" type="button" onClick={reset}>Reset all fields</button>
+          <button className="clear" type="button" onClick={reset}>{s.reset}</button>
         </p>
       </section>
     </main>

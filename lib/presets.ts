@@ -42,11 +42,11 @@ export function newId(): string {
   return `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 7)}`;
 }
 
-export function toolLabel(t: ToolPreset): string {
-  const bits = [t.d && `Ø${t.d} mm`, t.z && `${t.z} fl.`].filter(Boolean).join(', ');
+export function toolLabel(t: ToolPreset, flutesAbbr = 'fl.'): string {
+  const bits = [t.d && `Ø${t.d} mm`, t.z && `${t.z} ${flutesAbbr}`].filter(Boolean).join(', ');
   return bits ? `${t.name} (${bits})` : t.name;
 }
 
-export function spindleLabel(s: SpindlePreset): string {
-  return s.nMax ? `${s.name} (max ${s.nMax} RPM)` : s.name;
+export function spindleLabel(s: SpindlePreset, rpm = 'RPM'): string {
+  return s.nMax ? `${s.name} (max ${s.nMax} ${rpm})` : s.name;
 }
