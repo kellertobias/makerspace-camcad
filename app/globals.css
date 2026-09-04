@@ -69,3 +69,14 @@ input.computed { background: var(--computed); color: var(--computed-text); borde
   border: 1px solid var(--border); border-radius: 8px; background: color-mix(in srgb, var(--card) 85%, var(--bg)); }
 .ill svg { display: block; max-width: 220px; }
 .ill-accent { color: var(--accent); }
+
+.presets { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin-bottom: 12px; }
+.presets select { flex: 1 1 220px; padding: 8px 10px; border: 1px solid var(--border); border-radius: 6px;
+  background: var(--card); color: var(--text); font: inherit; }
+.presets .row input { min-width: 160px; }
+.btn { background: var(--card); border: 1px solid var(--border); color: var(--text); border-radius: 6px;
+  padding: 7px 10px; cursor: pointer; font: inherit; }
+.btn:hover:not(:disabled) { border-color: var(--accent); }
+.btn:disabled { opacity: 0.45; cursor: default; }
+.btn.primary { background: var(--accent); border-color: var(--accent); color: #fff; }
+.btn.danger:hover:not(:disabled) { border-color: #d2413a; color: #d2413a; }

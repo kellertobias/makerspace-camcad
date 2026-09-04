@@ -14,8 +14,8 @@ const common = {
 /** Tool cross-section (looking at the end of the end mill): a disc with curved flute gullets. */
 function ToolFace({ flutes = 4, r = 26, cx = 60, cy = 42 }: { flutes?: number; r?: number; cx?: number; cy?: number }) {
   const parts: string[] = [];
-  const gullet = 0.55; // fraction of each pitch that is gullet (cut-away)
-  const depth = 0.34; // gullet depth as fraction of r
+  const gullet = flutes <= 2 ? 0.7 : flutes >= 8 ? 0.45 : 0.55; // fraction of each pitch that is gullet (cut-away)
+  const depth = flutes <= 2 ? 0.45 : flutes >= 8 ? 0.2 : 0.34; // gullet depth as fraction of r
   const pitch = (Math.PI * 2) / flutes;
   for (let i = 0; i < flutes; i++) {
     const a0 = i * pitch; // cutting edge (tip) at a0
@@ -57,12 +57,13 @@ const arc = (cx: number, cy: number, r: number, a0: number, a1: number) => {
   return `M ${p(a0)} A ${r} ${r} 0 ${large} 1 ${p(a1)}`;
 };
 
-export function Illustration({ k }: { k: VarKey }) {
+export function Illustration({ k, flutes }: { k: VarKey; flutes?: number }) {
+  const z = flutes ?? 4;
   switch (k) {
     case 'd':
       return (
         <svg {...common} aria-label="Tool diameter">
-          <ToolFace />
+          <ToolFace flutes={z} />
           <line x1={34} y1={80} x2={34} y2={44} strokeDasharray="2 2" />
           <line x1={86} y1={80} x2={86} y2={44} strokeDasharray="2 2" />
           <Arrow x1={60} y1={79} x2={35} y2={79} accent />
@@ -73,13 +74,13 @@ export function Illustration({ k }: { k: VarKey }) {
     case 'z':
       return (
         <svg {...common} aria-label="Number of flutes">
-          <ToolFace flutes={4} />
-          {[0, 1, 2, 3].map((i) => {
-            const a = (i / 4) * Math.PI * 2;
+          <ToolFace flutes={z} />
+          {Array.from({ length: z }, (_, i) => {
+            const a = (i / z) * Math.PI * 2;
             return (
               <g key={i} className="ill-accent">
                 <circle cx={60 + Math.cos(a) * 26} cy={42 + Math.sin(a) * 26} r={3} fill="currentColor" stroke="none" />
-                <text x={60 + Math.cos(a) * 35} y={42 + Math.sin(a) * 35 + 3.5} textAnchor="middle" fontSize={9} fill="currentColor" stroke="none">{i + 1}</text>
+                <text x={60 + Math.cos(a) * 35} y={42 + Math.sin(a) * 35 + 3.5} textAnchor="middle" fontSize={z > 6 ? 7 : 9} fill="currentColor" stroke="none">{i + 1}</text>
               </g>
             );
           })}
@@ -88,7 +89,7 @@ export function Illustration({ k }: { k: VarKey }) {
     case 'vc':
       return (
         <svg {...common} aria-label="Cutting speed">
-          <ToolFace />
+          <ToolFace flutes={z} />
           <path d={arc(60, 42, 26, -Math.PI / 2 - 1.1, -Math.PI / 2)} className="ill-accent" />
           <Arrow x1={60} y1={16} x2={82} y2={16} accent />
           <text x={88} y={19} fontSize={10} fill="currentColor" stroke="none" className="ill-accent">vc</text>
@@ -98,7 +99,7 @@ export function Illustration({ k }: { k: VarKey }) {
     case 'n':
       return (
         <svg {...common} aria-label="Spindle speed">
-          <ToolFace />
+          <ToolFace flutes={z} />
           <path d={arc(60, 42, 34, Math.PI * 0.75, Math.PI * 2.25)} className="ill-accent" />
           <Arrow x1={37.5} y1={65.5} x2={35.5} y2={66.5} accent />
           <text x={60} y={80} textAnchor="middle" fontSize={9} fill="currentColor" stroke="none" className="ill-accent">n rev/min</text>
