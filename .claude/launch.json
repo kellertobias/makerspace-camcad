@@ -1,0 +1,6 @@
+{
+  "version": "0.0.1",
+  "configurations": [
+    { "name": "cnc-static", "runtimeExecutable": "npx", "runtimeArgs": ["serve", "-l", "3456", "out"], "port": 3456 }
+  ]
+}
