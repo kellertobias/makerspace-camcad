@@ -10,6 +10,7 @@ import { bboxUnion, bboxValid } from '@/lib/geometry/types';
 import { about, compose, rotation, scaling, translation, transformPath } from '@/lib/geometry/transform';
 import { placementBBox } from '@/lib/cam/instances';
 import { openTextFiles, saveText, setCurrentHandle } from '@/lib/persist/fs';
+import { scheduleSessionSave } from '@/lib/persist/session';
 import { migrateProject } from '@/lib/model/schema';
 import { planProject } from '@/lib/cam/plan';
 import { exportProgram } from '@/lib/post';
@@ -97,6 +98,23 @@ export function addOperationForSelection(type: OperationType, side?: 'outside' |
   op.targets = targets;
   ps.addOperation(op);
   ui.select({ operations: [op.id] });
+  ui.setDirty(true);
+}
+
+/** Drilling / threading without a selection: an empty operation whose points are then placed in the 2D view. */
+export function addPointOperation(type: 'drill' | 'thread') {
+  const ps = useProject.getState();
+  const lib = useLibrary.getState();
+  const ui = useUi.getState();
+  const tool = lib.tools.find((t) => t.id === lib.activeToolId) ?? lib.tools[0];
+  if (!tool) { ui.notify(ui.lang === 'de' ? 'Kein Werkzeug vorhanden.' : 'No tool available.', 'error'); return; }
+  ps.ensureTool(tool);
+  const machine = lib.machines.find((m) => m.id === ps.project.machineId);
+  const op = newOperation(type, tool.id, tool, ps.project.stock.thickness / 2, Object.keys(ps.project.operations).length + 1, machine?.climbAllowed === true);
+  op.name = type === 'drill' ? (ui.lang === 'de' ? 'Bohrungen' : 'Drillings') : (ui.lang === 'de' ? 'Gewinde' : 'Threads');
+  ps.addOperation(op);
+  ui.select({ operations: [op.id] });
+  ui.setPointPlacing(op.id);
   ui.setDirty(true);
 }
 
@@ -227,7 +245,7 @@ export async function saveProject(as = false) {
   const ui = useUi.getState();
   const text = JSON.stringify(project, null, 1);
   const name = await saveText(text, `${project.name || 'project'}.cncproj`, 'application/json', PROJECT_TYPES, !as);
-  if (name) { ui.setFile(name); ui.setDirty(false); ui.notify(ui.lang === 'de' ? 'Gespeichert' : 'Saved'); }
+  if (name) { ui.setFile(name); ui.setDirty(false); ui.notify(ui.lang === 'de' ? 'Gespeichert' : 'Saved'); scheduleSessionSave(0); }
 }
 
 export async function openProject() {
@@ -240,6 +258,7 @@ export async function openProject() {
     useProject.temporal.getState().clear();
     if (files[0].handle) setCurrentHandle(files[0].handle);
     ui.setFile(files[0].name); ui.setDirty(false); ui.clearSelection();
+    scheduleSessionSave(0);
   } catch (e) { ui.notify((e as Error).message, 'error'); }
 }
 
@@ -251,9 +270,16 @@ export function newProjectAction() {
   useProject.temporal.getState().clear();
   setCurrentHandle(null);
   ui.setFile(null); ui.setDirty(false); ui.clearSelection();
+  scheduleSessionSave(0);
 }
 
-export async function exportGcode() {
+/** Open the safety disclaimer; the actual export runs from `runGcodeExport` once acknowledged. */
+export function exportGcode() {
+  useUi.getState().openModal('gcode-warning');
+}
+
+/** Generate and save the G-code file. Only called after the disclaimer has been acknowledged. */
+export async function runGcodeExport() {
   const { project } = useProject.getState();
   const lib = useLibrary.getState();
   const ui = useUi.getState();

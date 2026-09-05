@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { polylinePath, signedArea, bbox, flatten } from '@/lib/geometry/path';
+import { polylinePath, signedArea, bbox, flatten, closestPoint } from '@/lib/geometry/path';
 import { pocketMoves } from '@/lib/cam/pocket';
 import { newOperation, newTool } from '@/lib/model/defaults';
 import type { Operation } from '@/lib/model/project';
@@ -97,5 +97,108 @@ describe('zig-zag strategy', () => {
     // the raster strategy on the same pocket produces separate lines
     const o2 = op('inside'); o2.strategy = 'raster';
     expect(pocketMoves([rect()], o2, ctx).toolPaths.length).toBeGreaterThan(5);
+  });
+});
+
+describe('ring linking', () => {
+  const zOf = (m: { z?: number }) => m.z;
+  it('stays at depth between rings and passes: one ramp per pass, no lift until the end', () => {
+    const o = op('inside'); o.depth = 6; o.stepDown = 3; o.entry = { kind: 'ramp', angle: 10 };
+    const r = pocketMoves([rect()], o, ctx);
+    const ms = r.moves as { k: string; x?: number; y?: number; z?: number }[];
+    let z = ctx.safeZ, lifts = 0;
+    for (const m of ms) { const nz = zOf(m); if (nz === undefined) continue; if (nz > z + 1e-9) lifts++; z = nz; }
+    // only the final retract to safe Z lifts the tool
+    expect(lifts).toBe(1);
+    // ramps are feed moves that travel in XY while descending; they come in one run per depth pass
+    let runs = 0, prev = ctx.safeZ, inRun = false;
+    for (const m of ms) {
+      const nz = zOf(m);
+      if (nz === undefined) { inRun = false; continue; }
+      const ramp = m.k === 'line' && m.x !== undefined && nz < prev - 1e-9;
+      if (ramp && !inRun) runs++;
+      inRun = ramp;
+      prev = nz;
+    }
+    expect(runs).toBe(2);
+  });
+  it('lifts to cross an island', () => {
+    const island = polylinePath([{ x: 40, y: 15 }, { x: 60, y: 15 }, { x: 60, y: 45 }, { x: 40, y: 45 }], true);
+    const o = op('inside'); o.entry = { kind: 'ramp', angle: 10 };
+    const r = pocketMoves([rect(), island], o, ctx);
+    const rapidsUp = r.moves.filter((m) => m.k === 'rapid' && (m as { z?: number }).z !== undefined && (m as { x?: number }).x === undefined);
+    expect(rapidsUp.length).toBeGreaterThan(1);
+  });
+});
+
+describe('disconnected pocket areas', () => {
+  it('finishes one area (walls and fill) before travelling to the next: one lift per pass between two areas', () => {
+    const other = polylinePath([{ x: 110, y: 10 }, { x: 170, y: 10 }, { x: 170, y: 50 }, { x: 110, y: 50 }], true);
+    const o = op('inside'); o.depth = 6; o.stepDown = 3; o.entry = { kind: 'ramp', angle: 10 };
+    const r = pocketMoves([rect(), other], o, ctx);
+    let z = ctx.safeZ, lifts = 0;
+    for (const m of r.moves) { const nz = (m as { z?: number }).z; if (nz === undefined) continue; if (nz > z + 1e-9) lifts++; z = nz; }
+    // pass 1: area A -> area B (1 lift); pass 2 starts in B where the tool is, then B -> A (1 lift); final retract
+    expect(lifts).toBe(3);
+  });
+  it('after a lift the tool plunges only to already cleared depth and ramps the rest', () => {
+    const other = polylinePath([{ x: 110, y: 10 }, { x: 170, y: 10 }, { x: 170, y: 50 }, { x: 110, y: 50 }], true);
+    const o = op('inside'); o.depth = 6; o.stepDown = 3; o.entry = { kind: 'ramp', angle: 10 };
+    const r = pocketMoves([rect(), other], o, ctx);
+    const ms = r.moves as { k: string; x?: number; z?: number }[];
+    let z = ctx.safeZ, lifted = false;
+    const reached = new Set<number>([0]); // depths the whole pocket has been cleared to
+    for (const m of ms) {
+      if (m.z === undefined) continue;
+      if (m.z > z + 1e-9) lifted = true;
+      else if (lifted && m.k === 'line' && m.x === undefined) { expect([...reached].some((d) => Math.abs(d - m.z!) < 1e-6)).toBe(true); lifted = false; }
+      z = m.z;
+      if (m.z <= -3 - 1e-9) reached.add(-3);
+    }
+    // and every pass depth is first reached by a ramp (a move that travels in XY), never by a Z-only plunge
+    let prev = ctx.safeZ; const firstReach = new Map<number, string>();
+    for (const m of ms) { if (m.z === undefined) continue; const key = Math.round(m.z * 1000) / 1000; if (m.z < prev - 1e-9 && !firstReach.has(key)) firstReach.set(key, m.x === undefined ? 'plunge' : 'ramp'); prev = m.z; }
+    expect(firstReach.get(-3)).toBe('ramp');
+    expect(firstReach.get(-6)).toBe('ramp');
+  });
+});
+
+describe('zig-zag fill start', () => {
+  it('the wall pass ends where the zig-zag begins, so the fill continues without a slot across the floor or a lift', () => {
+    const o = op('inside'); o.strategy = 'zigzag'; o.depth = 3; o.stepDown = 3; o.entry = { kind: 'ramp', angle: 10 };
+    const r = pocketMoves([rect()], o, ctx);
+    const wall = r.toolPaths[0], firstLine = r.toolPaths[1];
+    expect(wall.closed).toBe(true); expect(firstLine.closed).toBe(false);
+    // the wall (after its forward ramp) is rotated so that the loop ends at the fill start
+    const ms = r.moves as { k: string; x?: number; y?: number; z?: number }[];
+    // find the first move that reaches the fill start
+    const fs = firstLine.start;
+    const idx = ms.findIndex((m) => m.x !== undefined && Math.abs(m.x - fs.x) < 1e-6 && Math.abs((m.y ?? NaN) - fs.y) < 1e-6);
+    expect(idx).toBeGreaterThan(0);
+    // no rapid (lift) between the beginning of the cut and that point
+    expect(ms.slice(3, idx + 1).some((m) => m.k === 'rapid')).toBe(false);
+    // and the tool centre never leaves the wall on the way there: every move up to the fill start lies on the wall outline
+    const onWall = (x: number, y: number) => Math.abs(x - 13) < 1e-6 || Math.abs(x - 87) < 1e-6 || Math.abs(y - 13) < 1e-6 || Math.abs(y - 47) < 1e-6;
+    expect(ms.slice(3, idx + 1).every((m) => m.x === undefined || onWall(m.x, m.y!))).toBe(true);
+  });
+  it('a raster line that is not adjacent to the previous one is reached at clearance height, not by cutting across', () => {
+    const island = polylinePath([{ x: 40, y: 15 }, { x: 60, y: 15 }, { x: 60, y: 45 }, { x: 40, y: 45 }], true);
+    const o = op('inside'); o.strategy = 'raster'; o.rasterAngle = 90; o.entry = { kind: 'ramp', angle: 10 };
+    const r = pocketMoves([rect(), island], o, ctx);
+    const ms = r.moves as { k: string; x?: number; y?: number; z?: number }[];
+    const onPath = (a: { x: number; y: number }, b: { x: number; y: number }) => r.toolPaths.some((p) => closestPoint(p, a).d < 1e-3 && closestPoint(p, b).d < 1e-3);
+    // every feed move that travels in XY is either a cutting move on a tool path or a short link to the neighbouring line
+    let last: { x: number; y: number } | null = null, lifts = 0;
+    for (const m of ms) {
+      if (m.k === 'rapid' && m.z !== undefined && m.x === undefined) lifts++;
+      if (m.x === undefined || m.y === undefined) continue;
+      if (last && m.k === 'line') {
+        const d = Math.hypot(m.x - last.x, m.y - last.y);
+        if (d > 3 * 2.2 + 1e-6) expect(onPath(last, { x: m.x, y: m.y })).toBe(true);
+      }
+      last = { x: m.x, y: m.y };
+    }
+    // the island splits the raster into two groups: at least one lift is needed to get from one to the other
+    expect(lifts).toBeGreaterThan(1);
   });
 });

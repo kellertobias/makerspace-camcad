@@ -175,6 +175,8 @@ export function OperationParams({ op }: { op: Operation }) {
   const clearSelection = useUi((u) => u.clearSelection);
   const tabPlacing = useUi((u) => u.tabPlacing);
   const setTabPlacing = useUi((u) => u.setTabPlacing);
+  const pointPlacing = useUi((u) => u.pointPlacing);
+  const setPointPlacing = useUi((u) => u.setPointPlacing);
   const tabsOf = (o: Operation) => (o.type === 'cutout' && o.tabs ? o.tabs : { count: 4, width: 8, height: 3 });
   const del = () => { if (confirm(s.confirmDelete(op.name || s.opNames[op.type]))) { removeOperations([op.id]); clearSelection(); } };
   return (
@@ -193,6 +195,13 @@ export function OperationParams({ op }: { op: Operation }) {
         {op.entry.kind === 'ramp' && <Hl k="rampAngle"><NumberField label={s.rampAngle} unit="°" value={op.entry.angle} min={1} max={90} onChange={(v) => patch({ entry: { kind: 'ramp', angle: v } })} title={lang === 'de' ? '90° = kein Rampen, senkrecht eintauchen' : '90° = no ramp, straight plunge'} /></Hl>}
         <Hl k="zOffset"><NumberField label={s.zOffset} unit="mm" value={op.zOffset} min={0} onChange={(v) => patch({ zOffset: v })} title={s.zOffsetHint} /></Hl>
         <CheckField label={s.enabled} value={op.enabled} onChange={(v) => patch({ enabled: v })} />
+        {(op.type === 'drill' || op.type === 'thread') && (<>
+          <div className="full" style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+            <button type="button" className={`btn small${pointPlacing === op.id ? ' primary' : ''}`} onClick={() => setPointPlacing(pointPlacing === op.id ? null : op.id)}>{pointPlacing === op.id ? s.stopPlacing : s.placePoints}</button>
+            <span style={{ fontSize: 12, color: 'var(--muted)' }}>{s.pointsPlaced(op.targets.filter((tg) => tg.point).length)}</span>
+          </div>
+          {pointPlacing === op.id && <div className="full hint" style={{ margin: 0, color: 'var(--accent)' }}>{s.placingPoints}</div>}
+        </>)}
       </Section>
       <Section title={lang === 'de' ? 'Start & Richtung' : 'Start & direction'} id="op-start" defaultOpen={false}>
         <div className="full"><StartDiagram startT={op.startT} startAngle={op.startAngle} climb={climbAllowed && op.climb} lang={lang} /></div>
@@ -222,8 +231,8 @@ export function OperationParams({ op }: { op: Operation }) {
                 <button type="button" className={`btn small${tabPlacing === op.id ? ' primary' : ''}`} onClick={() => setTabPlacing(tabPlacing === op.id ? null : op.id)}>{tabPlacing === op.id ? s.stopPlacing : s.placeTabs}</button>
                 <span style={{ fontSize: 12, color: 'var(--muted)' }}>{s.tabsPlaced(op.tabs?.points?.length ?? 0)}</span>
               </div>}
-          {tabPlacing === op.id && <div className="full hint" style={{ margin: 0, color: 'var(--accent)' }}>{s.placingTabs}</div>}
-          <Hl k="tabWidth"><NumberField label={s.tabWidth} unit="mm" value={op.tabs?.width ?? 8} min={0.5} onChange={(v) => patch({ tabs: { ...tabsOf(op), width: v } } as Partial<Operation>)} /></Hl>
+          {tabPlacing === op.id && <div className="full hint" style={{ margin: 0, color: 'var(--accent)' }}>{s.placingTabs} {s.snapHintTabs}</div>}
+          <Hl k="tabWidth"><NumberField label={s.tabWidth} unit="mm" value={op.tabs?.width ?? 8} min={0.5} onChange={(v) => patch({ tabs: { ...tabsOf(op), width: v } } as Partial<Operation>)} title={lang === 'de' ? 'Breite des stehenbleibenden Materials (Mindestbreite); der Fräser hebt einen Radius davor ab und senkt einen Radius danach wieder ein.' : 'Width of the material left standing (minimum); the cutter lifts one radius before the bridge and lowers one radius after it.'} /></Hl>
           <Hl k="tabHeight"><NumberField label={s.tabHeight} unit="mm" value={op.tabs?.height ?? 3} min={0.1} onChange={(v) => patch({ tabs: { ...tabsOf(op), height: v } } as Partial<Operation>)} /></Hl>
         </Section>
       )}
@@ -263,12 +272,12 @@ export function OperationParams({ op }: { op: Operation }) {
           {op.targets.map((tg, i) => {
             const pl = project.placements[tg.placementId]; const shape = pl ? project.shapes[pl.shapeId] : undefined;
             const idx = shape?.paths.findIndex((x) => x.id === tg.pathId) ?? -1; const path = shape?.paths[idx];
-            const label = `${pl?.name ?? '?'}: ${path ? pathLabel(path, idx, lang) : tg.pick}`;
+            const label = tg.point ? `${pl ? pl.name + ': ' : ''}${s.pointAt(tg.point.x, tg.point.y)}` : `${pl?.name ?? '?'}: ${path ? pathLabel(path, idx, lang) : tg.pick}`;
             const setTg = (patchTg: Partial<typeof tg>) => patch({ targets: op.targets.map((x, j) => (j === i ? { ...x, ...patchTg } : x)) });
             return (
               <div key={i} style={{ display: 'flex', flexDirection: 'column', gap: 2, borderBottom: '1px dashed var(--border)', paddingBottom: 4 }}>
                 <div className="cam-node" style={{ padding: 0, cursor: 'default' }} title={label}>
-                  <span className="ico">{tg.role === 'exclude' ? '⛔' : path?.closed ? '○' : '⌇'}</span>
+                  <span className="ico">{tg.role === 'exclude' ? '⛔' : tg.point ? '⌖' : path?.closed ? '○' : '⌇'}</span>
                   <span className="lbl" style={{ fontSize: 12 }}>{label}</span>
                   <button type="button" className="cam-x" style={{ opacity: 1 }} title={lang === 'de' ? 'Aus Bearbeitung entfernen' : 'Remove from operation'}
                     onClick={() => { const targets = op.targets.filter((_, j) => j !== i); if (targets.length) patch({ targets }); else del(); }}>✕</button>

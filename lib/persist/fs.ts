@@ -15,10 +15,22 @@ export const hasFsAccess = () => typeof window !== 'undefined' && typeof window.
 export function setCurrentHandle(h: FileHandle | null) { currentHandle = h; }
 export const getCurrentHandle = () => currentHandle;
 
+type PermHandle = FileHandle & { queryPermission?: (o: { mode: 'readwrite' }) => Promise<PermissionState>; requestPermission?: (o: { mode: 'readwrite' }) => Promise<PermissionState> };
+async function ensureWritable(h: FileHandle): Promise<boolean> {
+  const ph = h as PermHandle;
+  try {
+    if (!ph.queryPermission) return true;
+    if ((await ph.queryPermission({ mode: 'readwrite' })) === 'granted') return true;
+    return ph.requestPermission ? (await ph.requestPermission({ mode: 'readwrite' })) === 'granted' : false;
+  } catch { return false; }
+}
+
 export async function saveText(text: string, suggestedName: string, mime = 'application/json', types?: { description: string; accept: Record<string, string[]> }[], reuseHandle = false): Promise<string | null> {
   if (hasFsAccess()) {
     try {
       let handle = reuseHandle ? currentHandle : null;
+      // a handle restored after a reload needs its permission renewed; when refused, fall back to the picker
+      if (handle && !(await ensureWritable(handle))) handle = null;
       if (!handle) handle = await window.showSaveFilePicker!({ suggestedName, types });
       const w = await handle.createWritable();
       await w.write(text);

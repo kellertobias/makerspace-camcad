@@ -1,6 +1,7 @@
 import { create } from 'zustand';
 import type { Id } from '@/lib/model/project';
 import type { Lang } from '@/lib/i18n';
+import type { SnapPoint } from '@/lib/geometry/snap';
 
 export type View = '2d' | '3d' | 'gcode';
 export type RibbonTab = 'file' | 'layout' | 'ops' | 'machine' | 'view';
@@ -21,7 +22,7 @@ interface UiState {
   showMilling: boolean;
   showToolpaths: boolean;
   showRapids: boolean;
-  modal: null | 'options' | 'import' | 'text' | 'array' | 'shortcuts';
+  modal: null | 'options' | 'import' | 'text' | 'array' | 'shortcuts' | 'gcode-warning';
   optionsTab: 'machines' | 'tools' | 'posts';
   toast: { text: string; kind: 'info' | 'error' } | null;
   fileName: string | null;
@@ -29,6 +30,12 @@ interface UiState {
   /** Operation whose bridges are being placed by clicking in the 2D view. */
   tabPlacing: Id | null;
   setTabPlacing: (id: Id | null) => void;
+  /** Drill/thread operation whose points are being placed by clicking snap points in the 2D view. */
+  pointPlacing: Id | null;
+  setPointPlacing: (id: Id | null) => void;
+  /** Pinned snap points (max 2); two of them span a reference line with its own snap points. */
+  snapRefs: SnapPoint[];
+  setSnapRefs: (refs: SnapPoint[]) => void;
   /** placement being edited by the text dialog (null = create new) */
   textEditId: Id | null;
   openTextModal: (placementId: Id | null) => void;
@@ -47,8 +54,8 @@ interface UiState {
 }
 
 const VIEW_KEY = 'cnc-cam:view:v1';
-type ViewPrefs = Pick<UiState, 'view' | 'tab' | 'showGrid' | 'snap' | 'showMilling' | 'showToolpaths' | 'showRapids'>;
-const VIEW_KEYS: (keyof ViewPrefs)[] = ['view', 'tab', 'showGrid', 'snap', 'showMilling', 'showToolpaths', 'showRapids'];
+type ViewPrefs = Pick<UiState, 'view' | 'tab' | 'pick' | 'showGrid' | 'snap' | 'showMilling' | 'showToolpaths' | 'showRapids'>;
+const VIEW_KEYS: (keyof ViewPrefs)[] = ['view', 'tab', 'pick', 'showGrid', 'snap', 'showMilling', 'showToolpaths', 'showRapids'];
 
 /** Restore persisted view settings (call once on the client). */
 export function loadViewPrefs() {
@@ -76,17 +83,20 @@ export function loadPref<T>(key: string, fallback: T): T {
 }
 export function savePref<T>(key: string, value: T) { try { window.localStorage.setItem(`cnc-cam:pref:${key}`, JSON.stringify(value)); } catch {} }
 
+const s0 = () => useUi.getState();
 export const useUi = create<UiState>((set) => ({
   lang: 'de', view: '2d', tab: 'layout', pick: 'contour', selection: emptySel(),
-  showGrid: true, snap: true, showMilling: true, showToolpaths: true, showRapids: false, modal: null, optionsTab: 'tools', toast: null, fileName: null, dirty: false, tabPlacing: null, textEditId: null,
-  setTabPlacing: (tabPlacing) => set({ tabPlacing }),
+  showGrid: true, snap: true, showMilling: true, showToolpaths: true, showRapids: false, modal: null, optionsTab: 'tools', toast: null, fileName: null, dirty: false, tabPlacing: null, pointPlacing: null, snapRefs: [], textEditId: null,
+  setSnapRefs: (snapRefs) => set({ snapRefs }),
+  setTabPlacing: (tabPlacing) => set({ tabPlacing, pointPlacing: tabPlacing ? null : s0().pointPlacing }),
+  setPointPlacing: (pointPlacing) => set({ pointPlacing, tabPlacing: pointPlacing ? null : s0().tabPlacing }),
   openTextModal: (textEditId) => set({ modal: 'text', textEditId }),
   setLang: (lang) => { try { window.localStorage.setItem('cnc-milling-calc:lang', lang); } catch {} set({ lang }); },
   setView: (view) => set({ view }),
   setTab: (tab) => set({ tab }),
   setPick: (pick) => set({ pick }),
   select: (sel, additive) => set((s) => {
-    if (!additive) return { selection: { ...emptySel(), ...sel }, tabPlacing: sel.operations?.length ? s.tabPlacing : null };
+    if (!additive) return { selection: { ...emptySel(), ...sel }, tabPlacing: sel.operations?.length ? s.tabPlacing : null, pointPlacing: sel.operations?.length ? s.pointPlacing : null };
     const merged: Selection = { ...s.selection, stock: false };
     for (const k of ['placements', 'operations', 'groups', 'paths'] as const) {
       const cur = new Set<string>(merged[k]);

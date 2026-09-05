@@ -1,4 +1,4 @@
-import { openDB, type IDBPDatabase } from 'idb';
+import { db } from '@/lib/persist/db';
 import type { Font } from 'opentype.js';
 
 export interface FontEntry { id: string; name: string; url?: string; builtIn: boolean }
@@ -12,8 +12,6 @@ export const BUILT_IN_FONTS: FontEntry[] = [
 ];
 
 const cache = new Map<string, Promise<Font>>();
-let dbp: Promise<IDBPDatabase> | null = null;
-const db = () => (dbp ??= openDB('cnc-cam', 1, { upgrade(d) { if (!d.objectStoreNames.contains('fonts')) d.createObjectStore('fonts', { keyPath: 'id' }); } }));
 
 export async function listUserFonts(): Promise<FontEntry[]> {
   try { const all = await (await db()).getAll('fonts') as { id: string; name: string }[]; return all.map((f) => ({ id: f.id, name: f.name, builtIn: false })); } catch { return []; }

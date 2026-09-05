@@ -3,7 +3,7 @@ import { useLibrary } from '@/lib/store/library';
 import { useProject } from '@/lib/store/project';
 import { useUi, type RibbonTab } from '@/lib/store/ui';
 import { t } from '@/lib/i18n';
-import { addOperationForSelection, addSurfacingOperation, deleteSelection, duplicateSelection, exportGcode, groupSelection, importFiles, newProjectAction, openProject, saveProject, selectedPlacementIds, transformSelection } from '@/lib/store/actions';
+import { addOperationForSelection, addSurfacingOperation, deleteSelection, duplicateSelection, exportGcode, groupSelection, importFiles, newProjectAction, openProject, saveProject, selectedPlacementIds, transformSelection, addPointOperation } from '@/lib/store/actions';
 import { placementBBox } from '@/lib/cam/instances';
 import { bboxUnion, bboxValid } from '@/lib/geometry/types';
 import { compose, translation } from '@/lib/geometry/transform';
@@ -103,8 +103,8 @@ export function Ribbon() {
               <RBtn ico="✂" label={s.cutout} onClick={() => addOperationForSelection('cutout', 'outside')} disabled={!hasSel} />
               <RBtn ico="▤" label={s.pocket} onClick={() => addOperationForSelection('pocket')} disabled={!hasSel} />
               <RBtn ico="✎" label={s.engrave} onClick={() => addOperationForSelection('engrave', 'on')} disabled={!hasSel} />
-              <RBtn ico="⌖" label={s.drill} onClick={() => addOperationForSelection('drill')} disabled={!hasSel} />
-              <RBtn ico="⌀" label={s.thread} onClick={() => addOperationForSelection('thread')} disabled={!hasSel} />
+              <RBtn ico="⌖" label={s.drill} onClick={() => (hasSel ? addOperationForSelection('drill') : addPointOperation('drill'))} title={s.placePoints} />
+              <RBtn ico="⌀" label={s.thread} onClick={() => (hasSel ? addOperationForSelection('thread') : addPointOperation('thread'))} title={s.placePoints} />
               <RBtn ico="▬" label={s.surface} onClick={addSurfacingOperation} title={s.surfaceHint} />
             </Group>
           </>)}

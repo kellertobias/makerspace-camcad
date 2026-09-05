@@ -2,8 +2,18 @@
 
 Browser-based 2.5D CAM for the Makerspace machines: import DXF/SVG outlines, lay them out on a sheet, assign
 operations (contour, cutout with bridges, pocket, engraving, drilling), preview toolpaths and generate G-code through
-data-driven post-processor profiles. Fully static (Next.js `output: 'export'`), no server. The original cutting-data
+data-driven post-processor profiles. The G-code view explains every line for the selected machine (movement, distance,
+feed, duration, limit violations) and also explains G-code you paste in yourself. Fully static
+(Next.js `output: 'export'`), no server. The original cutting-data
 calculator lives on at `/calc/` and is embedded in the tool editor.
+
+## ⚠ Safety
+
+This is a **custom G-code generator** — you use the generated programs **at your own risk**. G-code is not really
+standardised and no software is bug free; parts of the output have been checked, but correctness for your machine and
+your job cannot be guaranteed. Always review the program (and the 2D/3D preview) before running it, keep the machine
+in view the whole time and hit the **emergency stop** (not the pause) as soon as anything looks wrong. The same
+disclaimer is shown before every export and written into the header of every generated file.
 
 ## Run
 
@@ -54,6 +64,9 @@ per-machine climb permission, zero-point modes, undo/redo, project save/open (`.
 library, 3D preview: heightmap material simulation in a Web Worker (`workers/cam.worker.ts`), procedural MDF/OSB/plywood/
 wood/aluminium/acrylic looks (plywood layers on cut walls), 0.1 mm grid over the machined region, blue through-cut floors,
 red over-cuts, cut areas coloured by operation, animated tool with material following it, playback; text objects from
-bundled OFL fonts (`public/fonts/`) or uploaded TTF/OTF, created together with tool and operation (stroke-width check).
+bundled OFL fonts (`public/fonts/`) or uploaded TTF/OTF, created together with tool and operation (stroke-width check);
+thread milling; point snapping (`lib/geometry/snap.ts`) for drill/thread points and bridges: segment ends and centres,
+⅓ ⅔ ¼ ¾ points, arc and contour centres, plus a reference line between two dwelled-on points with its own fraction
+points; pockets link rings at depth with one ramp per pass.
 
-Pending: laser operations end-to-end + SVG export, thread milling, saw blades, IMA FMC exporter, IndexedDB project cache.
+Pending: laser operations end-to-end + SVG export, saw blades, IMA FMC exporter, IndexedDB project cache.

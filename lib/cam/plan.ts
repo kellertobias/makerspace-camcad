@@ -23,6 +23,8 @@ export interface PlanResult { program: Program; /** tool-centre paths per op for
 /** Resolve the world geometry a target refers to. */
 export function resolveTarget(project: Project, t: Target): { paths: Path[]; points: { x: number; y: number }[] } {
   const pl = project.placements[t.placementId];
+  // free point: local to its placement (replicated per array instance) or in sheet coordinates when unattached
+  if (t.point) return { paths: [], points: pl ? instanceTransforms(pl).map((m) => apply(m, t.point!)) : [{ x: t.point.x, y: t.point.y }] };
   if (!pl) return { paths: [], points: [] };
   const shape = project.shapes[pl.shapeId];
   if (!shape) return { paths: [], points: [] };

@@ -156,6 +156,11 @@ export interface Target {
   /** Path within the shape; omitted for `shape-center` picks. */
   pathId?: Id;
   pick: PickKind;
+  /**
+   * Free point (drilling, threading) in the local coordinates of `placementId` so it follows the part; with an empty
+   * placementId the point is in sheet (world) coordinates. Arrays replicate it per instance.
+   */
+  point?: Vec2;
   /** Pockets: 'exclude' marks a contour that must stay (standoff / mounting spot); `margin` = extra material kept around it. */
   role?: 'cut' | 'exclude';
   margin?: number;

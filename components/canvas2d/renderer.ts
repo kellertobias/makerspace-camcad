@@ -1,5 +1,6 @@
 import type { Path, Project, Vec2 } from '@/lib/model/project';
-import type { PlanResult } from '@/lib/cam/plan';
+import { resolveTarget, type PlanResult } from '@/lib/cam/plan';
+import type { SnapPoint } from '@/lib/geometry/snap';
 import { worldPaths } from '@/lib/cam/instances';
 import { segStart } from '@/lib/geometry/path';
 import { arcSweep } from '@/lib/geometry/arcs';
@@ -42,6 +43,14 @@ export interface DrawOpts {
   zero: Vec2; marquee?: BBox | null; dark: boolean; hover?: { placementId: string; pathId: string } | null;
   /** operation whose bridges are being placed */
   tabPlacing?: string | null;
+  /** drill/thread operation whose points are being placed */
+  pointPlacing?: string | null;
+  /** snapping: the point under the cursor, pinned references (a dotted line between two) and candidates of the hovered contour */
+  snap?: SnapPoint | null;
+  snapRefs?: SnapPoint[];
+  snapHints?: SnapPoint[];
+  /** reference-line snap points (between two pinned references) */
+  refPoints?: SnapPoint[];
 }
 
 export function draw(ctx: CanvasRenderingContext2D, v: View, o: DrawOpts) {
@@ -175,6 +184,63 @@ export function draw(ctx: CanvasRenderingContext2D, v: View, o: DrawOpts) {
       ctx.fillStyle = muted; ctx.font = '11px system-ui';
       ctx.fillText(`${(maxX - minX).toFixed(1)} × ${(maxY - minY).toFixed(1)} mm`, p0.x, p1.y - 8);
     }
+  }
+  // drill / thread points: circle in the tool diameter with a crosshair, muted unless the operation is selected
+  {
+    const anySel = o.selection.operations.length > 0;
+    for (const op of Object.values(project.operations)) {
+      if ((op.type !== 'drill' && op.type !== 'thread') || !op.enabled) continue;
+      const selected = o.selection.operations.includes(op.id);
+      const placing = o.pointPlacing === op.id;
+      const tool = project.tools[op.toolId];
+      const rad = Math.max(4, ((op.type === 'thread' ? op.majorD : tool?.d ?? 4) / 2) * v.scale);
+      ctx.globalAlpha = anySel && !selected ? 0.25 : 1;
+      ctx.strokeStyle = placing ? '#ff7a00' : OP_TYPE_COLORS[op.type]; ctx.lineWidth = selected ? 2 : 1.2;
+      for (const tg of op.targets) {
+        for (const pt of resolveTarget(project, tg).points) {
+          const q = toScreen(v, pt);
+          ctx.beginPath(); ctx.arc(q.x, q.y, rad, 0, Math.PI * 2); ctx.stroke();
+          ctx.beginPath(); ctx.moveTo(q.x - rad - 3, q.y); ctx.lineTo(q.x + rad + 3, q.y); ctx.moveTo(q.x, q.y - rad - 3); ctx.lineTo(q.x, q.y + rad + 3); ctx.stroke();
+        }
+      }
+    }
+    ctx.globalAlpha = 1;
+  }
+  // snapping overlay
+  if (o.snapHints?.length) {
+    ctx.fillStyle = o.dark ? '#7fb2ff' : '#1f6feb';
+    for (const h of o.snapHints) { const q = toScreen(v, h); ctx.beginPath(); ctx.arc(q.x, q.y, h.kind === 'end' ? 1.5 : 2.5, 0, Math.PI * 2); ctx.fill(); }
+  }
+  if (o.snapRefs?.length) {
+    ctx.strokeStyle = '#ff7a00'; ctx.fillStyle = '#ff7a00'; ctx.lineWidth = 1.5;
+    for (const r of o.snapRefs) { const q = toScreen(v, r); ctx.beginPath(); ctx.arc(q.x, q.y, 5, 0, Math.PI * 2); ctx.stroke(); ctx.beginPath(); ctx.arc(q.x, q.y, 1.5, 0, Math.PI * 2); ctx.fill(); }
+    if (o.snapRefs.length === 2) {
+      const a = toScreen(v, o.snapRefs[0]), b = toScreen(v, o.snapRefs[1]);
+      ctx.setLineDash([2, 4]); ctx.lineWidth = 1;
+      ctx.beginPath(); ctx.moveTo(a.x, a.y); ctx.lineTo(b.x, b.y); ctx.stroke(); ctx.setLineDash([]);
+      // tick marks at the fraction points
+      const len = Math.hypot(b.x - a.x, b.y - a.y) || 1;
+      const nx = -(b.y - a.y) / len, ny = (b.x - a.x) / len;
+      ctx.font = '10px system-ui'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+      for (const r of o.refPoints ?? []) {
+        const q = toScreen(v, r);
+        ctx.beginPath(); ctx.moveTo(q.x - nx * 4, q.y - ny * 4); ctx.lineTo(q.x + nx * 4, q.y + ny * 4); ctx.stroke();
+        ctx.fillStyle = o.dark ? '#ffb370' : '#c65a00';
+        ctx.fillText(r.label, q.x + nx * 11, q.y + ny * 11);
+      }
+      ctx.textAlign = 'start'; ctx.textBaseline = 'alphabetic';
+    }
+  }
+  if (o.snap) {
+    const q = toScreen(v, o.snap);
+    ctx.strokeStyle = '#ff7a00'; ctx.lineWidth = 1.5;
+    ctx.beginPath();
+    if (o.snap.kind === 'end') ctx.rect(q.x - 5, q.y - 5, 10, 10);
+    else if (o.snap.kind === 'center' || o.snap.kind === 'arc-center') { ctx.arc(q.x, q.y, 6, 0, Math.PI * 2); ctx.moveTo(q.x - 9, q.y); ctx.lineTo(q.x + 9, q.y); ctx.moveTo(q.x, q.y - 9); ctx.lineTo(q.x, q.y + 9); }
+    else { ctx.moveTo(q.x, q.y - 7); ctx.lineTo(q.x + 7, q.y); ctx.lineTo(q.x, q.y + 7); ctx.lineTo(q.x - 7, q.y); ctx.closePath(); }
+    ctx.stroke();
+    ctx.font = 'bold 11px system-ui'; ctx.fillStyle = o.dark ? '#ffb370' : '#c65a00';
+    ctx.fillText(o.snap.label, q.x + 10, q.y - 8);
   }
   // zero point
   const z = toScreen(v, o.zero);

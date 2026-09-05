@@ -1,6 +1,7 @@
 {
   "version": "0.0.1",
   "configurations": [
-    { "name": "cnc-static", "runtimeExecutable": "npx", "runtimeArgs": ["serve", "-l", "3456", "out"], "port": 3456 }
+    { "name": "cnc-static", "runtimeExecutable": "npx", "runtimeArgs": ["serve", "-l", "3456", "out"], "port": 3456 },
+    { "name": "cnc-dev", "runtimeExecutable": "npm", "runtimeArgs": ["run", "dev"], "port": 3000, "autoPort": true }
   ]
 }

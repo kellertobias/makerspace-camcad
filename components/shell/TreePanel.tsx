@@ -1,5 +1,6 @@
 'use client';
 import { useState, type DragEvent } from 'react';
+import { useSessionUi } from '@/lib/store/session-ui';
 import { useProject } from '@/lib/store/project';
 import { useUi } from '@/lib/store/ui';
 import { t } from '@/lib/i18n';
@@ -19,7 +20,8 @@ export function TreePanel() {
   const updateOperation = useProject((p) => p.updateOperation);
   const removeOperations = useProject((p) => p.removeOperations);
   const moveOperation = useProject((p) => p.moveOperation);
-  const [expanded, setExpanded] = useState<Record<string, boolean>>({});
+  const expanded = useSessionUi((x) => x.expanded);
+  const setExpanded = useSessionUi((x) => x.setExpanded);
   const [drag, setDrag] = useState<{ id: string; over: string | null; where: 'before' | 'after' | 'tool' } | null>(null);
 
   const ops = Object.values(project.operations).sort((a, b) => a.order - b.order);
@@ -69,7 +71,7 @@ export function TreePanel() {
   };
 
   const opLine = (op: Operation) => {
-    const n = new Set(op.targets.map((tg) => `${tg.placementId}:${tg.pathId ?? ''}`)).size;
+    const n = new Set(op.targets.map((tg) => `${tg.placementId}:${tg.pathId ?? (tg.point ? `${tg.point.x},${tg.point.y}` : '')}`)).size;
     // Z range: start depth (operation + group) down to start + depth, as machine Z below the surface
     const groupDepth = Object.values(project.groups).find((g) => op.targets.some((tg) => project.placements[tg.placementId]?.groupId === g.id))?.zOffset ?? 0;
     const zStart = -(op.zOffset + groupDepth), zEnd = zStart - op.depth;
@@ -105,7 +107,7 @@ export function TreePanel() {
     return (
       <div key={pid}>
         <div className={`cam-node depth${depth}${selected ? ' selected' : ''}`} onClick={(e) => select({ placements: [pid] }, e.shiftKey || e.metaKey || e.ctrlKey)}>
-          <span className="ico" onClick={(e) => { e.stopPropagation(); setExpanded((x) => ({ ...x, [pid]: !open })); }} style={{ cursor: 'pointer' }}>{pathIds.length ? (open ? '▾' : '▸') : '◇'}</span>
+          <span className="ico" onClick={(e) => { e.stopPropagation(); setExpanded(pid, !open); }} style={{ cursor: 'pointer' }}>{pathIds.length ? (open ? '▾' : '▸') : '◇'}</span>
           <span className="lbl">{pl.name}</span>
           <span className="meta">{shape ? `${pathIds.length}/${shape.paths.length} ${s.paths}` : ''}{n > 1 ? ` ${s.instances(n)}` : ''}</span>
         </div>

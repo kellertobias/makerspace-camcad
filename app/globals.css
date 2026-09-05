@@ -157,9 +157,40 @@ input.computed { background: var(--computed); color: var(--computed-text); borde
 .cam-canvas-wrap canvas { display: block; width: 100%; height: 100%; touch-action: none; cursor: crosshair; }
 .cam-canvas-hint { position: absolute; left: 8px; bottom: 8px; background: color-mix(in srgb, var(--card) 85%, transparent); border: 1px solid var(--border); border-radius: 6px; padding: 3px 8px; font-size: 11px; color: var(--muted); pointer-events: none; }
 .cam-gcode { flex: 1; min-height: 0; display: flex; flex-direction: column; }
-.cam-gcode pre { flex: 1; margin: 0; padding: 10px 12px; overflow: auto; font-family: var(--mono); font-size: 12px; line-height: 1.4; background: var(--card); white-space: pre; }
-.cam-gcode .bar { display: flex; gap: 8px; align-items: center; padding: 6px 10px; border-bottom: 1px solid var(--border); font-size: 12px; color: var(--muted); }
+.cam-gcode .bar { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; padding: 6px 10px; border-bottom: 1px solid var(--border); font-size: 12px; color: var(--muted); }
 .cam-gcode .bar .grow { flex: 1; }
+.cam-gcode .bar select { padding: 2px 4px; border: 1px solid var(--border); border-radius: 6px; background: var(--card); color: var(--text); font: inherit; }
+.cam-inline { display: inline-flex; align-items: center; gap: 4px; }
+.cam-seg { display: inline-flex; border: 1px solid var(--border); border-radius: 6px; overflow: hidden; }
+.cam-seg button { border: 0; background: var(--card); color: var(--text); font: inherit; padding: 3px 10px; cursor: pointer; }
+.cam-seg button + button { border-left: 1px solid var(--border); }
+.cam-seg button.active { background: var(--accent); color: #fff; }
+.cam-gcode-paste { margin: 0; border: 0; border-bottom: 1px solid var(--border); padding: 8px 12px; height: 120px; resize: vertical;
+  font-family: var(--mono); font-size: 12px; line-height: 1.4; background: var(--card); color: var(--text); }
+.cam-gcode-split { flex: 1; min-height: 0; display: flex; }
+.cam-gcode-lines { flex: 1; min-width: 0; overflow: auto; background: var(--card); font-family: var(--mono); font-size: 12px; }
+.cam-gcode-lines .row { display: flex; align-items: center; gap: 10px; padding: 0 10px; line-height: 20px; cursor: pointer; white-space: nowrap; }
+.cam-gcode-lines .row:hover { background: var(--bg); }
+.cam-gcode-lines .row.sel { background: var(--computed); color: var(--computed-text); }
+.cam-gcode-lines .row.warned { background: var(--warn-bg); }
+.cam-gcode-lines .row .ln { width: 52px; flex: none; text-align: right; color: var(--muted); user-select: none; }
+.cam-gcode-lines .row code { flex: none; width: 34ch; overflow: hidden; text-overflow: ellipsis; }
+.cam-gcode-lines .row .exp { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; color: var(--muted); font-family: system-ui, sans-serif; }
+.cam-gcode-lines .row.warned .exp { color: var(--warn-text); }
+.cam-gcode-lines .row.comment code, .cam-gcode-lines .row.empty code { color: var(--muted); }
+.cam-gcode-lines .row.motion .exp, .cam-gcode-lines .row.spindle .exp, .cam-gcode-lines .row.tool .exp { color: var(--text); }
+.cam-gcode-detail { width: 320px; flex: none; border-left: 1px solid var(--border); overflow: auto; padding: 10px 12px 16px; font-size: 12px; display: flex; flex-direction: column; }
+.cam-gcode-detail header { display: flex; align-items: center; gap: 8px; margin-bottom: 6px; }
+.cam-gcode-detail .tag { font-size: 11px; color: var(--muted); border: 1px solid var(--border); border-radius: 999px; padding: 0 8px; }
+.cam-gcode-detail pre { margin: 0 0 8px; padding: 6px 8px; background: var(--bg); border-radius: 6px; font-family: var(--mono); overflow-x: auto; }
+.cam-gcode-detail .title { margin: 0 0 8px; font-size: 13px; }
+.cam-gcode-detail ul { margin: 0 0 8px; padding-left: 18px; color: var(--muted); }
+.cam-gcode-detail .warn { font-size: 12px; margin: 6px 0; }
+.cam-gcode-detail dl { display: grid; grid-template-columns: auto 1fr; gap: 2px 10px; margin: 8px 0 0; color: var(--muted); }
+.cam-gcode-detail dt { color: var(--muted); }
+.cam-gcode-detail dd { margin: 0; color: var(--text); font-family: var(--mono); }
+.cam-gcode-detail .foot { margin-top: auto; padding-top: 12px; font-size: 11px; }
+@media (max-width: 900px) { .cam-gcode-split { flex-direction: column; } .cam-gcode-detail { width: auto; border-left: 0; border-top: 1px solid var(--border); max-height: 45%; } }
 
 .cam-params { grid-area: params; border-left: 1px solid var(--border); background: var(--card); overflow: auto; padding: 4px 0 20px; }
 .cam-section { border-bottom: 1px solid var(--border); padding: 6px 10px 10px; }

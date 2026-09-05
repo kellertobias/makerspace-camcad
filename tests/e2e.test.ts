@@ -58,7 +58,7 @@ describe('outside contour with tabs -> Estlcam G-code', () => {
     const { program } = planProject(project, machine, '0.1');
     const res = emitGcode(program, estlcamHolz, project.stock.safeZ);
     console.log(res.text);
-    expect(res.text).toMatch(/G02 X[\d.-]+ Y[\d.-]+ Z-[\d.]+ I[\d.-]+ J[\d.-]+ F300/);
+    expect(res.text).toMatch(/G02 X[\d.-]+ Y[\d.-]+ Z-[\d.]+ I[\d.-]+ J[\d.-]+ F(?!300\b)\d+/);
     expect(res.warnings).toEqual([]);
   });
 });

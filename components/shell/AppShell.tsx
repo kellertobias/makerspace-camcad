@@ -12,46 +12,98 @@ import { OptionsModal } from '@/components/modals/OptionsModal';
 import { ArrayModal } from '@/components/modals/ArrayModal';
 import { ShortcutsModal } from '@/components/modals/ShortcutsModal';
 import { TextModal } from '@/components/modals/TextModal';
+import { GcodeWarningModal } from '@/components/modals/GcodeWarningModal';
 import { useUi, loadViewPrefs } from '@/lib/store/ui';
 import { useLibrary } from '@/lib/store/library';
 import { useProject } from '@/lib/store/project';
 import { t } from '@/lib/i18n';
 import { deleteSelection, duplicateSelection, groupSelection, importFiles, openProject, saveProject, transformSelection } from '@/lib/store/actions';
 import { migrateProject } from '@/lib/model/schema';
+import type { Project } from '@/lib/model/project';
 import { installDebugHook } from '@/lib/store/debug';
+import { loadSession, registerSessionProvider, scheduleSessionSave, flushSession } from '@/lib/persist/session';
+import { setCurrentHandle } from '@/lib/persist/fs';
+import { useSessionUi } from '@/lib/store/session-ui';
 
-const AUTOSAVE_KEY = 'cnc-cam:autosave:v1';
 
 export function AppShell() {
   const ui = useUi();
   const s = t(ui.lang);
   const lib = useLibrary();
   const project = useProject((p) => p.project);
-  const rev = useProject((p) => p.rev);
 
-  // boot: language, library, autosaved project
+  // boot: language, library, then the cached session (project, history, file, selection, camera, tree)
   useEffect(() => {
     try { const l = window.localStorage.getItem('cnc-milling-calc:lang'); if (l === 'de' || l === 'en') useUi.getState().setLang(l); } catch {}
     loadViewPrefs();
     useLibrary.getState().load();
     const libState = useLibrary.getState();
-    let restored = false;
-    try {
-      const raw = window.localStorage.getItem(AUTOSAVE_KEY);
-      if (raw) { const p = migrateProject(JSON.parse(raw)); useProject.getState().setProject(p); restored = true; }
-    } catch {}
-    if (!restored) useProject.getState().reset(libState.activeMachineId, libState.tools);
-    useProject.temporal.getState().clear();
+    let cancelled = false;
+    (async () => {
+      let restored = false;
+      try {
+        const rec = await loadSession();
+        if (cancelled) return;
+        if (rec?.project) {
+          const p = migrateProject(rec.project);
+          useProject.getState().setProject(p);
+          useProject.temporal.getState().clear();
+          const past = (rec.past ?? []).map((pr) => ({ project: migrateProject(pr) })), future = (rec.future ?? []).map((pr) => ({ project: migrateProject(pr) }));
+          if (past.length || future.length) useProject.temporal.setState({ pastStates: past as never, futureStates: future as never });
+          const u = useUi.getState();
+          u.setFile(rec.fileName ?? null);
+          u.setDirty(!!rec.dirty);
+          if (rec.handle) setCurrentHandle(rec.handle);
+          if (rec.selection) {
+            const sel = rec.selection;
+            u.select({
+              placements: sel.placements.filter((id) => p.placements[id]),
+              operations: sel.operations.filter((id) => p.operations[id]),
+              groups: sel.groups.filter((id) => p.groups[id]),
+              paths: sel.paths.filter((k) => { const [pid, pathId] = k.split(':'); const pl = p.placements[pid]; return pl && p.shapes[pl.shapeId]?.paths.some((x) => x.id === pathId); }),
+              stock: sel.stock,
+            });
+          }
+          useSessionUi.setState({ camera: rec.camera ?? null, expanded: rec.expanded ?? {} });
+          restored = true;
+        }
+      } catch {}
+      if (!restored) { useProject.getState().reset(libState.activeMachineId, libState.tools); useProject.temporal.getState().clear(); }
+      // from here on every change is cached
+      registerSessionProvider(() => {
+        const ps = useProject.getState(), tm = useProject.temporal.getState(), u = useUi.getState(), su = useSessionUi.getState();
+        return { project: ps.project, past: tm.pastStates.map((x) => (x as { project: Project }).project), future: tm.futureStates.map((x) => (x as { project: Project }).project), dirty: u.dirty, fileName: u.fileName, selection: u.selection, camera: su.camera, expanded: su.expanded };
+      });
+      useSessionUi.setState({ booted: true });
+      void flushSession();
+    })();
     installDebugHook();
+    return () => { cancelled = true; };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // autosave (debounced) to localStorage until the IndexedDB cache lands
+  // cache on every change (debounced), and flush synchronously when the page goes away
+  const booted = useSessionUi((x) => x.booted);
   useEffect(() => {
-    if (!lib.loaded) return;
-    const h = setTimeout(() => { try { window.localStorage.setItem(AUTOSAVE_KEY, JSON.stringify(project)); } catch {} }, 800);
-    return () => clearTimeout(h);
-  }, [project, rev, lib.loaded]);
+    if (!booted) return;
+    const unsubs = [
+      useProject.subscribe((st, prev) => { if (st.project !== prev.project) scheduleSessionSave(); }),
+      useProject.temporal.subscribe((st, prev) => { if (st.pastStates !== prev.pastStates || st.futureStates !== prev.futureStates) scheduleSessionSave(); }),
+      useUi.subscribe((st, prev) => { if (st.selection !== prev.selection || st.dirty !== prev.dirty || st.fileName !== prev.fileName) scheduleSessionSave(); }),
+      useSessionUi.subscribe((st, prev) => { if (st.camera !== prev.camera || st.expanded !== prev.expanded) scheduleSessionSave(); }),
+    ];
+    const flush = () => {
+      // commit a field still being edited, then write
+      const active = document.activeElement as HTMLElement | null;
+      if (active && typeof active.blur === 'function') active.blur();
+      void flushSession();
+    };
+    const onVis = () => { if (document.visibilityState === 'hidden') flush(); };
+    window.addEventListener('pagehide', flush);
+    window.addEventListener('beforeunload', flush);
+    document.addEventListener('visibilitychange', onVis);
+    return () => { for (const u of unsubs) u(); window.removeEventListener('pagehide', flush); window.removeEventListener('beforeunload', flush); document.removeEventListener('visibilitychange', onVis); };
+  }, [booted]);
 
   // keep the project's machine valid
   useEffect(() => {
@@ -76,7 +128,13 @@ export function AppShell() {
       if (e.key === 'r') transformSelection('rot90'); else if (e.key === 'R') transformSelection('rot-90');
       else if (e.key === 'm') transformSelection('mirrorX'); else if (e.key === 'M') transformSelection('mirrorY');
       else if (e.key === '1') useUi.getState().setView('2d'); else if (e.key === '2') useUi.getState().setView('3d'); else if (e.key === '3') useUi.getState().setView('gcode');
-      else if (e.key === 'Escape') { if (useUi.getState().modal) useUi.getState().closeModal(); else useUi.getState().clearSelection(); }
+      else if (e.key === 'Escape') {
+        const u = useUi.getState();
+        if (u.modal) u.closeModal();
+        else if (u.snapRefs.length) u.setSnapRefs([]);
+        else if (u.pointPlacing || u.tabPlacing) { u.setPointPlacing(null); u.setTabPlacing(null); }
+        else u.clearSelection();
+      }
     };
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
@@ -107,6 +165,7 @@ export function AppShell() {
       {ui.modal === 'array' && <ArrayModal />}
       {ui.modal === 'shortcuts' && <ShortcutsModal />}
       {ui.modal === 'text' && <TextModal key={ui.textEditId ?? 'new'} />}
+      {ui.modal === 'gcode-warning' && <GcodeWarningModal />}
       {ui.toast && <div className={`cam-toast ${ui.toast.kind}`}>{ui.toast.text}</div>}
     </div>
   );

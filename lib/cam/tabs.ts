@@ -11,9 +11,11 @@ import { movesAlong, movesAlongReverse } from './entry';
  *  auto    – straight segments first, choosing sides opposite to each other around the centre; if there are no
  *            usable straight segments, evenly spaced anywhere on the contour
  */
-export function tabPositions(path: Path, tabs: TabsSpec, manualPoints?: Vec2[]): number[] {
+export function tabPositions(path: Path, tabs: TabsSpec, manualPoints?: Vec2[], toolD = 0): number[] {
   const total = pathLength(path);
-  if (total <= tabs.width * 2) return [];
+  // the tool centre stays up over the bridge width plus one tool diameter (radius on each side)
+  const span = tabs.width + toolD;
+  if (total <= span * 2) return [];
   if ((tabs.mode ?? 'auto') === 'manual') {
     const pts = manualPoints ?? [];
     return pts.map((p) => closestPoint(path, p).t * total).sort((a, b) => a - b);
@@ -27,7 +29,7 @@ export function tabPositions(path: Path, tabs: TabsSpec, manualPoints?: Vec2[]):
   const cands: { pos: number; angle: number; len: number }[] = [];
   let acc = 0;
   for (let k = 0; k < path.segs.length; k++) {
-    if (path.segs[k].k === 'L' && lens[k] >= tabs.width * 1.5) {
+    if (path.segs[k].k === 'L' && lens[k] >= span * 1.5) {
       const mid = pointAt(path, (acc + lens[k] / 2) / total).pt;
       cands.push({ pos: acc + lens[k] / 2, angle: Math.atan2(mid.y - c.y, mid.x - c.x), len: lens[k] });
     }
@@ -69,11 +71,13 @@ export function tabPoints(path: Path, positions: number[]): Vec2[] {
 /**
  * One depth pass with bridges: cut at passZ, and at each bridge rapid up to tabTop, cross the bridge, then ramp back
  * down (zig-zag over the ramp length) — the Estlcam pattern.
+ * `tabs.width` is the material that must remain: the tool centre is lifted one tool radius before the bridge and
+ * lowered one radius after it, so the cutter's flank never touches the bridge.
  */
-export function insertTabs(path: Path, tabs: TabsSpec, centres: number[], passZ: number, tabTop: number, vf: number, vfPlunge: number, rampAngle: number): Move[] {
+export function insertTabs(path: Path, tabs: TabsSpec, centres: number[], passZ: number, tabTop: number, vf: number, vfPlunge: number, rampAngle: number, toolD = 0): Move[] {
   const total = pathLength(path);
   if (!centres.length) return movesAlong(path, 0, total, passZ, passZ, vf);
-  const half = tabs.width / 2;
+  const half = (tabs.width + toolD) / 2;
   const out: Move[] = [];
   let pos = 0;
   const drop = tabTop - passZ;
@@ -85,8 +89,9 @@ export function insertTabs(path: Path, tabs: TabsSpec, centres: number[], passZ:
     out.push(...movesAlong(path, a, b, tabTop, tabTop, vf));
     const fwdEnd = Math.min(total, b + rampLen);
     if (fwdEnd > b + 1e-6) {
-      out.push(...movesAlong(path, b, fwdEnd, tabTop, tabTop - drop / 2, vfPlunge));
-      out.push(...movesAlongReverse(path, fwdEnd, b, tabTop - drop / 2, passZ, vfPlunge));
+      // ramping travels in XY: the horizontal feed applies, the plunge feed is only for pure Z moves
+      out.push(...movesAlong(path, b, fwdEnd, tabTop, tabTop - drop / 2, vf));
+      out.push(...movesAlongReverse(path, fwdEnd, b, tabTop - drop / 2, passZ, vf));
     } else out.push({ k: 'line', z: passZ, f: vfPlunge });
     pos = b;
   }
