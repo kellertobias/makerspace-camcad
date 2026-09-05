@@ -12,6 +12,7 @@ import type { Machine, Tool, ToolKind } from '@/lib/model/project';
 import { newId } from '@/lib/model/ids';
 import { parsePp, serializePp, type PostProfile } from '@/lib/post';
 import { openTextFiles, saveText } from '@/lib/persist/fs';
+import { exportLibraryFile, exportMachineFile, exportToolsetFile, importLibraryFiles } from '@/lib/store/libraryIo';
 import { solve, fmt } from '@/lib/solver';
 import { HlProvider, Hl, ToolDiagram } from '@/components/panels/Diagrams';
 
@@ -49,6 +50,10 @@ function ToolsTab() {
       <div className="list">
         {lib.tools.map((tl) => <button type="button" key={tl.id} className={`item${tl.id === id ? ' active' : ''}`} onClick={() => setId(tl.id)}>T{tl.slot} {tl.name}<span className="meta">{s.toolKinds[tl.kind]} · Ø{tl.d} mm{tl.z ? ` · ${tl.z} ${s.flutesAbbr}` : ''}</span></button>)}
         <button type="button" className="btn" onClick={add} style={{ marginTop: 8 }}>+ {s.addTool}</button>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 6, marginTop: 12 }}>
+          <button type="button" className="btn small" onClick={() => exportToolsetFile()} title={s.exportAllTools}>⤴ {s.exportAllTools}</button>
+          <button type="button" className="btn small" onClick={async () => { const r = await importLibraryFiles(lib.activeMachineId || undefined); if (r?.tools.length) setId(r.tools[0]); }} title={s.importHint}>⤵ {s.importTools}</button>
+        </div>
       </div>
       {tool ? <ToolEditor tool={tool} onChange={save} onDelete={del} onDuplicate={dup} /> : <div className="cam-empty">–</div>}
     </div>
@@ -117,6 +122,10 @@ function MachinesTab() {
       <div className="list">
         {lib.machines.map((x) => <button type="button" key={x.id} className={`item${x.id === id ? ' active' : ''}`} onClick={() => setId(x.id)}>{x.name}<span className="meta">{s.kinds[x.kind]} · {lib.profiles.find((p) => p.id === x.postId)?.name ?? x.postId}</span></button>)}
         <button type="button" className="btn" onClick={add} style={{ marginTop: 8 }}>+ {s.addMachine}</button>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 6, marginTop: 12 }}>
+          <button type="button" className="btn small" onClick={async () => { const r = await importLibraryFiles(); if (r?.machines.length) setId(r.machines[0]); }} title={s.importHint}>⤵ {s.importBundle}</button>
+          <button type="button" className="btn small" onClick={exportLibraryFile}>⤴ {s.exportLibrary}</button>
+        </div>
       </div>
       {m ? (
         <div className="editor">
@@ -137,7 +146,25 @@ function MachinesTab() {
           {m.kind === 'laser' && <NumberField label="S max" value={m.laser?.sMax ?? 1000} onChange={(v) => set({ laser: { sMax: v, dynamic: m.laser?.dynamic ?? true } })} />}
           {m.kind === 'laser' && <CheckField label="M4 dynamic power" value={m.laser?.dynamic ?? true} onChange={(v) => set({ laser: { sMax: m.laser?.sMax ?? 1000, dynamic: v } })} />}
           <label className="cam-field full"><span className="cam-label">{s.info}</span><textarea className="cam-textarea" value={m.info ?? ''} onChange={(e) => set({ info: e.target.value })} /></label>
-          <div className="full" style={{ display: 'flex', gap: 8 }}>
+          <div className="full cam-toolset">
+            <div className="cam-label" style={{ marginBottom: 4 }}>{s.toolset}</div>
+            <label className="cam-toolset-all"><input type="checkbox" checked={!m.toolIds} onChange={(e) => lib.setMachineTools(m.id, e.target.checked ? undefined : lib.tools.map((x) => x.id))} /> {s.toolsetAll}</label>
+            {m.toolIds && (
+              <div className="cam-toolset-list">
+                {lib.tools.map((tl) => {
+                  const on = m.toolIds!.includes(tl.id);
+                  return <label key={tl.id}><input type="checkbox" checked={on} onChange={(e) => lib.setMachineTools(m.id, e.target.checked ? [...m.toolIds!, tl.id] : m.toolIds!.filter((x) => x !== tl.id))} /> T{tl.slot} {tl.name} <span className="meta">{s.toolKinds[tl.kind]} · Ø{tl.d}</span></label>;
+                })}
+              </div>
+            )}
+            <div className="hint" style={{ margin: '4px 0 0' }}>{s.toolsetHint}</div>
+            <div style={{ display: 'flex', gap: 6, marginTop: 6, flexWrap: 'wrap' }}>
+              <button type="button" className="btn small" onClick={() => exportToolsetFile({ machineId: m.id })}>⤴ {s.exportToolset}</button>
+              <button type="button" className="btn small" onClick={() => importLibraryFiles(m.id)} title={s.importHint}>⤵ {s.importTools}</button>
+            </div>
+          </div>
+          <div className="full" style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+            <button type="button" className="btn" onClick={() => exportMachineFile(m.id)}>⤴ {s.exportMachine}</button>
             <button type="button" className="btn primary" onClick={() => lib.setActiveMachine(m.id)} disabled={lib.activeMachineId === m.id}>{lang === 'de' ? 'Als aktive Maschine' : 'Use as active machine'}</button>
             <button type="button" className="btn danger" onClick={() => { if (confirm(s.confirmDelete(m.name))) { lib.deleteMachine(m.id); setId(lib.machines.find((x) => x.id !== m.id)?.id ?? ''); } }}>{s.delete}</button>
           </div>

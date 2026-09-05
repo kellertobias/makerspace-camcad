@@ -2,7 +2,7 @@ import { useProject } from './project';
 import { useUi } from './ui';
 import { useLibrary } from './library';
 import { importDrawing } from '@/lib/import';
-import type { Operation, OperationType, Path, Placement, Shape, Target, Project } from '@/lib/model/project';
+import type { Operation, OperationType, Path, Placement, Shape, Target, Project, Tool } from '@/lib/model/project';
 import { newOperation } from '@/lib/model/defaults';
 import { newId } from '@/lib/model/ids';
 import { bbox as pathBBox, signedArea } from '@/lib/geometry/path';
@@ -11,9 +11,10 @@ import { about, compose, rotation, scaling, translation, transformPath } from '@
 import { placementBBox } from '@/lib/cam/instances';
 import { openTextFiles, saveText, setCurrentHandle } from '@/lib/persist/fs';
 import { scheduleSessionSave } from '@/lib/persist/session';
+import { toolsForMachine } from '@/lib/persist/libraryFiles';
 import { migrateProject } from '@/lib/model/schema';
 import { planProject } from '@/lib/cam/plan';
-import { exportProgram } from '@/lib/post';
+import { exportProgram, exportSvg } from '@/lib/post';
 import { APP_VERSION } from '@/lib/version';
 
 /** Import DXF/SVG text as one shape (local origin at its bounding-box corner) and place it on the sheet. */
@@ -50,6 +51,18 @@ export async function importFiles() {
   if (ids.length) { ui.select({ placements: ids }); ui.setDirty(true); }
 }
 
+/** Tools of the project's machine (its toolset, or all tools), the active one first when it belongs to it. */
+export function machineTools(): Tool[] {
+  const lib = useLibrary.getState();
+  const machineId = useProject.getState().project.machineId;
+  return toolsForMachine(lib.tools, lib.machines.find((m) => m.id === machineId));
+}
+export function activeToolForMachine(): Tool | undefined {
+  const lib = useLibrary.getState();
+  const tools = machineTools();
+  return tools.find((t) => t.id === lib.activeToolId) ?? tools[0] ?? lib.tools.find((t) => t.id === lib.activeToolId) ?? lib.tools[0];
+}
+
 export function selectedPlacementIds(): string[] {
   const sel = useUi.getState().selection;
   const ids = new Set(sel.placements);
@@ -82,7 +95,7 @@ export function addOperationForSelection(type: OperationType, side?: 'outside' |
   const s = ui.lang;
   const targets = targetsFromSelection(ps.project);
   if (!targets.length) { ui.notify(s === 'de' ? 'Zuerst eine oder mehrere Konturen auswählen.' : 'Select one or more outlines first.', 'error'); return; }
-  const tool = lib.tools.find((t) => t.id === lib.activeToolId) ?? lib.tools[0];
+  const tool = activeToolForMachine();
   if (!tool) { ui.notify(s === 'de' ? 'Kein Werkzeug vorhanden.' : 'No tool available.', 'error'); return; }
   ps.ensureTool(tool);
   const depth = type === 'engrave' ? 1 : type === 'cutout' ? ps.project.stock.thickness + 1 : ps.project.stock.thickness / 2;
@@ -106,7 +119,7 @@ export function addPointOperation(type: 'drill' | 'thread') {
   const ps = useProject.getState();
   const lib = useLibrary.getState();
   const ui = useUi.getState();
-  const tool = lib.tools.find((t) => t.id === lib.activeToolId) ?? lib.tools[0];
+  const tool = activeToolForMachine();
   if (!tool) { ui.notify(ui.lang === 'de' ? 'Kein Werkzeug vorhanden.' : 'No tool available.', 'error'); return; }
   ps.ensureTool(tool);
   const machine = lib.machines.find((m) => m.id === ps.project.machineId);
@@ -135,7 +148,7 @@ export function addSurfacingOperation() {
   const ps = useProject.getState();
   const lib = useLibrary.getState();
   const ui = useUi.getState();
-  const tool = lib.tools.find((t) => t.id === lib.activeToolId) ?? lib.tools.find((t) => t.kind === 'facemill') ?? lib.tools[0];
+  const tool = machineTools().find((t) => t.id === lib.activeToolId) ?? machineTools().find((t) => t.kind === 'facemill') ?? activeToolForMachine();
   if (!tool) { ui.notify(ui.lang === 'de' ? 'Kein Werkzeug vorhanden.' : 'No tool available.', 'error'); return; }
   ps.ensureTool(tool);
   const { width, height } = ps.project.stock;
@@ -257,6 +270,7 @@ export async function openProject() {
     useProject.getState().setProject(p);
     useProject.temporal.getState().clear();
     if (files[0].handle) setCurrentHandle(files[0].handle);
+    if (useLibrary.getState().machines.some((m) => m.id === p.machineId)) useLibrary.getState().setActiveMachine(p.machineId);
     ui.setFile(files[0].name); ui.setDirty(false); ui.clearSelection();
     scheduleSessionSave(0);
   } catch (e) { ui.notify((e as Error).message, 'error'); }
@@ -265,8 +279,11 @@ export async function openProject() {
 export function newProjectAction() {
   const lib = useLibrary.getState();
   const ui = useUi.getState();
-  const tools = lib.tools;
-  useProject.getState().reset(lib.activeMachineId || lib.machines[0]?.id || '', tools);
+  // a new file keeps the last machine and its toolset
+  const machineId = (lib.machines.some((m) => m.id === lib.activeMachineId) ? lib.activeMachineId : useProject.getState().project.machineId) || lib.machines[0]?.id || '';
+  const tools = toolsForMachine(lib.tools, lib.machines.find((m) => m.id === machineId));
+  useProject.getState().reset(machineId, tools);
+  if (machineId) lib.setActiveMachine(machineId);
   useProject.temporal.getState().clear();
   setCurrentHandle(null);
   ui.setFile(null); ui.setDirty(false); ui.clearSelection();
@@ -288,10 +305,22 @@ export async function runGcodeExport() {
   const profile = lib.profiles.find((p) => p.id === machine.postId);
   if (!profile) { ui.notify('Post-processor profile not found.', 'error'); return; }
   const { program } = planProject(project, machine, APP_VERSION);
-  const res = exportProgram(program, profile, project.stock.safeZ, APP_VERSION);
+  const res = exportProgram(program, profile, project.stock.safeZ, APP_VERSION, { laserMode: machine.laser?.dynamic === false ? 'M3' : 'M4' });
   if (!res.text) { ui.notify(res.warnings.join(' '), 'error'); return; }
   for (const w of res.warnings) ui.notify(w);
   await saveText(res.text, res.filename, 'text/plain', [{ description: 'G-code', accept: { 'text/plain': [`.${profile.ext || 'nc'}`] } }]);
+}
+
+/** Export the planned tool paths as a sheet-sized SVG (mm) for laser software. */
+export async function exportSvgFile() {
+  const { project } = useProject.getState();
+  const lib = useLibrary.getState();
+  const ui = useUi.getState();
+  const machine = lib.machines.find((m) => m.id === project.machineId) ?? lib.machines[0];
+  if (!machine) { ui.notify(ui.lang === 'de' ? 'Keine Maschine ausgewählt.' : 'No machine selected.', 'error'); return; }
+  const plan = planProject(project, machine, APP_VERSION);
+  const text = exportSvg(project, plan);
+  await saveText(text, `${project.name || 'project'}.svg`, 'image/svg+xml', [{ description: 'SVG', accept: { 'image/svg+xml': ['.svg'] } }]);
 }
 
 export const orientationName = (p: Path) => (p.closed ? (signedArea(p) > 0 ? 'ccw' : 'cw') : 'open');

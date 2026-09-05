@@ -11,6 +11,7 @@ import { apply } from '@/lib/geometry/transform';
 import { drillMoves } from './drill';
 import { threadMoves } from './thread';
 import { pocketMoves, type Exclusion } from './pocket';
+import { laserCutMoves, laserEngraveMoves, type LaserCtx } from './laser';
 import { apply as applyMat } from '@/lib/geometry/transform';
 
 export const OP_TYPE_LABELS: Record<Operation['type'], string> = {
@@ -86,6 +87,10 @@ export function planProject(project: Project, machine: Machine, version = 'dev')
         tool, safeZ: project.stock.safeZ + (zTop), clearZ: project.stock.clearZ, vf: feeds.vf, vfPlunge: feeds.vfPlunge,
         s: firstCut ? feeds.s : undefined, zTop, groupDepth: group?.zOffset ?? 0, thickness: project.stock.thickness,
       };
+      const isLaserOp = op.type === 'laser-cut' || op.type === 'laser-engrave';
+      if (isLaserOp && machine.kind !== 'laser') fw.push(`Laser operation on the CNC machine ${machine.name}: check machine and post-processor`);
+      if (!isLaserOp && machine.kind === 'laser') fw.push(`Milling operation on the laser machine ${machine.name}: no Z axis, the program will not cut as intended`);
+      const laser: LaserCtx = { s: feeds.s, dynamic: machine.laser?.dynamic ?? true, z: op.type === 'laser-cut' ? zTop - project.stock.thickness : zTop - 0.3 };
       const opTp: OpToolpath = { opId: op.id, order, typeLabel: OP_TYPE_LABELS[op.type], name: op.name || `${op.type} ${order}`, moves: [], warnings: [...fw] };
       toolPaths[op.id] = [];
       tabMarks[op.id] = [];
@@ -107,7 +112,15 @@ export function planProject(project: Project, machine: Machine, version = 'dev')
           if (r.moves.length) { firstCut = false; ctx.s = undefined; }
         } else if (op.targets.length) opTp.warnings.push('Pocket has only exclusion contours');
       }
-      for (const target of op.type === 'pocket' ? [] : op.targets) {
+      if (op.type === 'laser-engrave') {
+        // all targets together so holes inside a hatched area stay clear
+        const all: Path[] = [];
+        for (const target of op.targets) all.push(...resolveTarget(project, target).paths);
+        const r = laserEngraveMoves(all, op, ctx, laser);
+        opTp.moves.push(...r.moves); toolPaths[op.id].push(...r.toolPaths); opTp.warnings.push(...r.warnings);
+        if (r.moves.length) firstCut = false;
+      }
+      for (const target of op.type === 'pocket' || op.type === 'laser-engrave' ? [] : op.targets) {
         const geo = resolveTarget(project, target);
         switch (op.type) {
           case 'contour': case 'cutout': case 'engrave':
@@ -127,6 +140,13 @@ export function planProject(project: Project, machine: Machine, version = 'dev')
             for (const p of pts) { const r = threadMoves(p, op, ctx); opTp.moves.push(...r.moves); opTp.warnings.push(...r.warnings); if (r.moves.length) firstCut = false; }
             break;
           }
+          case 'laser-cut':
+            for (const g of geo.paths) {
+              const r = laserCutMoves(g, op, ctx, laser);
+              opTp.moves.push(...r.moves); toolPaths[op.id].push(...r.toolPaths); opTp.warnings.push(...r.warnings);
+              if (r.moves.length) firstCut = false;
+            }
+            break;
           default:
             opTp.warnings.push(`Operation type "${op.type}" is not implemented yet`);
         }

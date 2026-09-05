@@ -3,7 +3,8 @@ import { useLibrary } from '@/lib/store/library';
 import { useProject } from '@/lib/store/project';
 import { useUi, type RibbonTab } from '@/lib/store/ui';
 import { t } from '@/lib/i18n';
-import { addOperationForSelection, addSurfacingOperation, deleteSelection, duplicateSelection, exportGcode, groupSelection, importFiles, newProjectAction, openProject, saveProject, selectedPlacementIds, transformSelection, addPointOperation } from '@/lib/store/actions';
+import { toolsForMachine } from '@/lib/persist/libraryFiles';
+import { addOperationForSelection, addSurfacingOperation, deleteSelection, duplicateSelection, exportGcode, groupSelection, importFiles, newProjectAction, openProject, saveProject, selectedPlacementIds, transformSelection, addPointOperation, exportSvgFile } from '@/lib/store/actions';
 import { placementBBox } from '@/lib/cam/instances';
 import { bboxUnion, bboxValid } from '@/lib/geometry/types';
 import { compose, translation } from '@/lib/geometry/transform';
@@ -61,6 +62,7 @@ export function Ribbon() {
           </Group>
           <Group title={s.exportGcode}>
             <RBtn ico="⚙" label={s.exportGcode} onClick={exportGcode} disabled={!plan || plan.program.tools.length === 0} />
+            <RBtn ico="⬡" label={s.exportSvg} onClick={exportSvgFile} disabled={!plan || plan.program.tools.length === 0} />
           </Group>
         </>)}
         {tab === 'layout' && (<>
@@ -89,7 +91,7 @@ export function Ribbon() {
           <Group title={s.activeTool}>
             <select className="cam-inline-select" value={lib.activeToolId} onChange={(e) => lib.setActiveTool(e.target.value)} aria-label={s.activeTool}>
               {!lib.tools.length && <option value="">{s.noTool}</option>}
-              {lib.tools.map((tl) => <option key={tl.id} value={tl.id}>T{tl.slot} {tl.name}</option>)}
+              {toolsForMachine(lib.tools, machine).map((tl) => <option key={tl.id} value={tl.id}>T{tl.slot} {tl.name}</option>)}
             </select>
             <button type="button" className="btn small" onClick={() => ui.openModal('options', 'tools')}>{s.toolLibrary}…</button>
           </Group>
@@ -129,6 +131,7 @@ export function Ribbon() {
           <Group title={s.estTime}>
             <span style={{ fontFamily: 'var(--mono)', fontSize: 14 }}>{plan ? formatHms(plan.program.meta.seconds) : '–'}</span>
             <RBtn ico="⚙" label={s.exportGcode} onClick={exportGcode} disabled={!plan || plan.program.tools.length === 0} />
+            <RBtn ico="⬡" label={s.exportSvg} onClick={exportSvgFile} disabled={!plan || plan.program.tools.length === 0} />
             <RBtn ico="⌨" label={s.viewGcode} onClick={() => ui.setView('gcode')} />
           </Group>
         </>)}

@@ -143,6 +143,8 @@ export interface Machine {
   climbAllowed?: boolean;
   laser?: { sMax: number; dynamic: boolean };
   info?: string;
+  /** Toolset: tools available on this machine (ids from the library). Undefined = every tool. */
+  toolIds?: Id[];
 }
 
 // ---------------------------------------------------------------------------
@@ -212,7 +214,7 @@ export type OperationVariant =
   | { type: 'drill'; mode: 'plunge' | 'peck' | 'helix'; peck?: number; dwell?: number }
   | { type: 'thread'; pitch: number; majorD: number; internal: boolean; passes: number }
   | { type: 'laser-cut'; power: number; speed: number; passes: number; kerfSide: Side }
-  | { type: 'laser-engrave'; power: number; speed: number; mode: 'vector' | 'hatch'; hatchPitch: number; hatchAngle: number };
+  | { type: 'laser-engrave'; power: number; speed: number; mode: 'vector' | 'hatch'; hatchPitch: number; hatchAngle: number; passes?: number; /** hatch: also trace the contour */ outline?: boolean };
 
 export type Operation = OperationBase & OperationVariant;
 export type OperationType = OperationVariant['type'];

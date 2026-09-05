@@ -322,3 +322,27 @@ export function ToolDiagram({ kind, d, z, tipAngle, fluteLength, stepDown, stepO
     </Svg>
   );
 }
+
+
+/** Laser engraving: hatch lines at pitch and angle inside a contour, optional outline pass. */
+export function HatchDiagram({ mode, pitch, angle, outline, lang }: { mode: 'vector' | 'hatch'; pitch: number; angle: number; outline: boolean; lang: 'de' | 'en' }) {
+  const de = lang === 'de';
+  const x0 = 40, y0 = 20, w = 220, h = 90;
+  const lines: { x1: number; y1: number; x2: number; y2: number }[] = [];
+  if (mode === 'hatch') {
+    // visual spacing: scale so ~6–14 lines are visible regardless of the real pitch
+    const step = Math.max(6, Math.min(16, pitch * 40));
+    const a = (angle * Math.PI) / 180, dx = Math.cos(a), dy = -Math.sin(a), nx = -dy, ny = dx;
+    const cx = x0 + w / 2, cy = y0 + h / 2, half = Math.hypot(w, h);
+    for (let o = -half; o <= half; o += step) lines.push({ x1: cx + nx * o - dx * half, y1: cy + ny * o - dy * half, x2: cx + nx * o + dx * half, y2: cy + ny * o + dy * half });
+  }
+  return (
+    <svg viewBox="0 0 300 130" className="cam-diagram" role="img" aria-label={de ? 'Lasergravur' : 'Laser engraving'}>
+      <defs><clipPath id="hatchClip"><rect x={x0} y={y0} width={w} height={h} rx={14} /></clipPath></defs>
+      <rect x={x0} y={y0} width={w} height={h} rx={14} className="stock" />
+      <g clipPath="url(#hatchClip)">{lines.map((l, i) => <line key={i} {...l} className="pass" />)}</g>
+      <rect x={x0} y={y0} width={w} height={h} rx={14} className={mode === 'vector' || outline ? 'tool' : 'stock'} fill="none" />
+      <text x={x0 + w / 2} y={y0 + h + 18} textAnchor="middle" className="lbl">{mode === 'hatch' ? `${de ? 'Schraffur' : 'hatch'} ${pitch} mm · ${angle}°${outline ? (de ? ' + Kontur' : ' + outline') : ''}` : de ? 'Vektor: Linien werden nachgefahren' : 'vector: the lines are traced'}</text>
+    </svg>
+  );
+}

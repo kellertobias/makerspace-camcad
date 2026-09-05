@@ -34,7 +34,7 @@ export const DISCLAIMER = [
 ];
 
 /** Render a machine-independent Program to G-code text according to a post profile. */
-export function emitGcode(program: Program, profile: PostProfile, safeZ: number, opts: { version?: string; date?: string } = {}): ExportResult {
+export function emitGcode(program: Program, profile: PostProfile, safeZ: number, opts: { version?: string; date?: string; /** laser machines: M4 (dynamic power) or M3 (constant) for the <mode> placeholder */ laserMode?: 'M3' | 'M4' } = {}): ExportResult {
   const out: string[] = [];
   const warnings: string[] = [...program.warnings];
   const safeNameEarly = (program.meta.project || 'program').replace(/[^\w.-]+/g, '_');
@@ -110,7 +110,7 @@ export function emitGcode(program: Program, profile: PostProfile, safeZ: number,
   const vars = {
     project: program.meta.project, version: opts.version ?? program.meta.version, build: opts.version ?? program.meta.version,
     time: formatHms(program.meta.seconds), tools: toolLines, date: opts.date ?? new Date().toISOString().slice(0, 10),
-    t: first?.tool.slot ?? 1, n: first?.tool.name ?? '', s: first?.s ?? 0, d: first?.tool.d ?? 0,
+    t: first?.tool.slot ?? 1, n: first?.tool.name ?? '', s: first?.s ?? 0, d: first?.tool.d ?? 0, mode: opts.laserMode ?? 'M4',
   };
   for (const l of DISCLAIMER) pushLine(`(${l})`);
   pushBlock(profile.blocks.programStart, vars);
@@ -130,7 +130,7 @@ export function emitGcode(program: Program, profile: PostProfile, safeZ: number,
           case 'line': motion(profile.cmds.linear, { X: m.x, Y: m.y, Z: m.z, F: m.f, S: m.s }); break;
           case 'arc': emitArc(m); break;
           case 'dwell': if (profile.blocks.dwell) pushBlock(profile.blocks.dwell, { seconds: m.seconds, ms: Math.round(m.seconds * 1000) }); break;
-          case 'spindle': pushBlock(m.on ? profile.blocks.laserOn : profile.blocks.laserOff, { s: m.s ?? 0 }); break;
+          case 'spindle': pushBlock(m.on ? profile.blocks.laserOn : profile.blocks.laserOff, { s: m.s ?? 0, mode: m.dynamic === false ? 'M3' : (opts.laserMode ?? 'M4') }); if (m.on) st.s = m.s; break;
           case 'coolant': pushBlock(m.mode === 'mist' ? profile.blocks.mistOn : m.mode === 'flood' ? profile.blocks.floodOn : profile.blocks.mistOff, {}); break;
           case 'comment': pushLine(`(${m.text})`); break;
         }

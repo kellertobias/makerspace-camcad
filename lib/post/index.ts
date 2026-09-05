@@ -11,9 +11,10 @@ export { emitGcode };
 
 export const BUILT_IN_PROFILES: PostProfile[] = [estlcamHolz, grblMill, grblLaser, imaFmc];
 
-export function exportProgram(program: Program, profile: PostProfile, safeZ: number, version: string): ExportResult {
+export function exportProgram(program: Program, profile: PostProfile, safeZ: number, version: string, opts: { laserMode?: 'M3' | 'M4' } = {}): ExportResult {
   if (profile.exporter === 'ima-fmc') {
     return { filename: 'unsupported.fmc', text: '', warnings: ['The IMA BIMA exporter (IMAWOP FMC) is not implemented yet.'] };
   }
-  return emitGcode(program, profile, safeZ, { version });
+  return emitGcode(program, profile, safeZ, { version, laserMode: opts.laserMode });
 }
+export { exportSvg } from './svgExport';

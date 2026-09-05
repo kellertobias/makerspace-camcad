@@ -3,13 +3,14 @@ import { useProject } from '@/lib/store/project';
 import { useUi } from '@/lib/store/ui';
 import { useLibrary } from '@/lib/store/library';
 import { t } from '@/lib/i18n';
+import { toolsForMachine } from '@/lib/persist/libraryFiles';
 import { NumberField } from '@/components/ui/NumberField';
 import { CheckField, SelectField, Section, TextField } from '@/components/ui/Field';
 import { build, decompose } from '@/lib/geometry/transform';
 import type { Corner, Material, Operation, OriginMode, Side } from '@/lib/model/project';
 import { usePlan } from '@/lib/store/plan';
 import { selectedPlacementIds, pathLabel, addSelectionToOperation } from '@/lib/store/actions';
-import { HlProvider, Hl, DepthDiagram, SideDiagram, PocketDiagram, TabsDiagram, OvercutDiagram, StartDiagram, ZeroDiagram, ArrayDiagram, DrillDiagram } from './Diagrams';
+import { HlProvider, Hl, DepthDiagram, SideDiagram, PocketDiagram, TabsDiagram, OvercutDiagram, StartDiagram, ZeroDiagram, ArrayDiagram, DrillDiagram, HatchDiagram } from './Diagrams';
 
 export function ParamPanel() {
   const lang = useUi((u) => u.lang);
@@ -168,9 +169,10 @@ export function OperationParams({ op }: { op: Operation }) {
   const tool = project.tools[op.toolId];
   const patch = (p: Partial<Operation>) => updateOperation(op.id, p);
   const warnings = plan?.program.tools.flatMap((tp) => tp.ops.filter((o) => o.opId === op.id).flatMap((o) => o.warnings)) ?? [];
-  const tools = [...libTools.filter((t) => !project.tools[t.id]), ...Object.values(project.tools)];
+  const tools = [...toolsForMachine(libTools, machine).filter((t) => !project.tools[t.id]), ...Object.values(project.tools)];
   const sideOpts = (vals: Side[]) => vals.map((v) => ({ value: v, label: s.sides[v] }));
   const through = project.stock.thickness + 1;
+  const isLaserOp = op.type === 'laser-cut' || op.type === 'laser-engrave';
   const removeOperations = useProject((p) => p.removeOperations);
   const clearSelection = useUi((u) => u.clearSelection);
   const tabPlacing = useUi((u) => u.tabPlacing);
@@ -184,16 +186,16 @@ export function OperationParams({ op }: { op: Operation }) {
       <Section title={`${s.operation}: ${s.opNames[op.type]}`} id="op-main" actions={<button type="button" className="btn small danger" onClick={del}>{s.delete}</button>}>
         <div className="full"><TextField label={s.name} value={op.name} onChange={(v) => patch({ name: v })} /></div>
         <div className="full"><SelectField label={s.tool} value={op.toolId} options={tools.map((t) => ({ value: t.id, label: `T${t.slot} ${t.name}` }))} onChange={(v) => { const t = tools.find((x) => x.id === v); if (t) { ensureTool(t); patch({ toolId: v }); } }} /></div>
-        <div className="full"><DepthDiagram depth={op.depth} stepDown={op.stepDown ?? tool?.cut.stepDown ?? 1} zOffset={op.zOffset} entry={op.entry} thickness={project.stock.thickness} safeZ={project.stock.safeZ} clearZ={project.stock.clearZ} lang={lang} /></div>
-        <Hl k="depth"><NumberField label={s.depth} unit="mm" value={op.depth} min={0} onChange={(v) => patch({ depth: v })} /></Hl>
-        <Hl k="stepDown"><NumberField label={s.stepDown} unit="mm" value={op.stepDown ?? tool?.cut.stepDown} min={0.05} onChange={(v) => patch({ stepDown: v })} /></Hl>
+        {!isLaserOp && <div className="full"><DepthDiagram depth={op.depth} stepDown={op.stepDown ?? tool?.cut.stepDown ?? 1} zOffset={op.zOffset} entry={op.entry} thickness={project.stock.thickness} safeZ={project.stock.safeZ} clearZ={project.stock.clearZ} lang={lang} /></div>}
+        {!isLaserOp && <Hl k="depth"><NumberField label={s.depth} unit="mm" value={op.depth} min={0} onChange={(v) => patch({ depth: v })} /></Hl>}
+        {!isLaserOp && <Hl k="stepDown"><NumberField label={s.stepDown} unit="mm" value={op.stepDown ?? tool?.cut.stepDown} min={0.05} onChange={(v) => patch({ stepDown: v })} /></Hl>}
         {(op.type === 'cutout') && <div className="full"><button type="button" className="btn small" onClick={() => patch({ depth: through })}>{s.depthThrough}</button></div>}
         {(op.type === 'contour' || op.type === 'engrave' || op.type === 'cutout') && <div className="full"><SideDiagram side={op.side} lang={lang} /></div>}
         {(op.type === 'contour' || op.type === 'engrave') && <Hl k="side"><SelectField label={s.side} value={op.side} options={sideOpts(['outside', 'inside', 'on', 'left', 'right'])} onChange={(v) => patch({ side: v } as Partial<Operation>)} /></Hl>}
         {op.type === 'cutout' && <Hl k="side"><SelectField label={s.side} value={op.side} options={sideOpts(['outside', 'inside'])} onChange={(v) => patch({ side: v } as Partial<Operation>)} /></Hl>}
-        <Hl k="entry"><SelectField label={s.entry} value={op.entry.kind} options={(['plunge', 'ramp', 'helix'] as const).map((k) => ({ value: k, label: s.entries[k] }))} onChange={(v) => patch({ entry: v === 'ramp' ? { kind: 'ramp', angle: op.entry.kind === 'ramp' ? op.entry.angle : tool?.cut.rampAngle ?? 10 } : { kind: v } })} /></Hl>
-        {op.entry.kind === 'ramp' && <Hl k="rampAngle"><NumberField label={s.rampAngle} unit="°" value={op.entry.angle} min={1} max={90} onChange={(v) => patch({ entry: { kind: 'ramp', angle: v } })} title={lang === 'de' ? '90° = kein Rampen, senkrecht eintauchen' : '90° = no ramp, straight plunge'} /></Hl>}
-        <Hl k="zOffset"><NumberField label={s.zOffset} unit="mm" value={op.zOffset} min={0} onChange={(v) => patch({ zOffset: v })} title={s.zOffsetHint} /></Hl>
+        {!isLaserOp && <Hl k="entry"><SelectField label={s.entry} value={op.entry.kind} options={(['plunge', 'ramp', 'helix'] as const).map((k) => ({ value: k, label: s.entries[k] }))} onChange={(v) => patch({ entry: v === 'ramp' ? { kind: 'ramp', angle: op.entry.kind === 'ramp' ? op.entry.angle : tool?.cut.rampAngle ?? 10 } : { kind: v } })} /></Hl>}
+        {!isLaserOp && op.entry.kind === 'ramp' && <Hl k="rampAngle"><NumberField label={s.rampAngle} unit="°" value={op.entry.angle} min={1} max={90} onChange={(v) => patch({ entry: { kind: 'ramp', angle: v } })} title={lang === 'de' ? '90° = kein Rampen, senkrecht eintauchen' : '90° = no ramp, straight plunge'} /></Hl>}
+        {!isLaserOp && <Hl k="zOffset"><NumberField label={s.zOffset} unit="mm" value={op.zOffset} min={0} onChange={(v) => patch({ zOffset: v })} title={s.zOffsetHint} /></Hl>}
         <CheckField label={s.enabled} value={op.enabled} onChange={(v) => patch({ enabled: v })} />
         {(op.type === 'drill' || op.type === 'thread') && (<>
           <div className="full" style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
@@ -210,11 +212,34 @@ export function OperationParams({ op }: { op: Operation }) {
         <Hl k="climb"><CheckField label={s.climb} value={climbAllowed && op.climb} onChange={(v) => patch({ climb: v })} disabled={!climbAllowed} /></Hl>
         {!climbAllowed && <div className="full hint" style={{ margin: 0 }}>{s.climbNotAllowed}</div>}
       </Section>
-      <Section title={lang === 'de' ? 'Vorschub (überschreiben)' : 'Feed overrides'} id="op-feed" defaultOpen={false}>
+      {op.type === 'laser-cut' && (
+        <Section title={s.laserSection} id="op-laser" defaultOpen>
+          <div className="full"><SideDiagram side={op.kerfSide} lang={lang} /></div>
+          <NumberField label={s.laserPower} unit="%" value={op.power} min={0} max={100} onChange={(v) => patch({ power: v } as Partial<Operation>)} />
+          <NumberField label={s.laserSpeed} unit="mm/min" value={op.speed} min={1} onChange={(v) => patch({ speed: v } as Partial<Operation>)} />
+          <NumberField label={s.laserPasses} value={op.passes} digits={0} min={1} max={50} onChange={(v) => patch({ passes: Math.round(v) } as Partial<Operation>)} />
+          <SelectField label={s.kerfSide} value={op.kerfSide} options={sideOpts(['outside', 'inside', 'on', 'left', 'right'])} onChange={(v) => patch({ kerfSide: v } as Partial<Operation>)} />
+          <div className="full hint" style={{ margin: 0 }}>{s.laserHint}</div>
+        </Section>
+      )}
+      {op.type === 'laser-engrave' && (
+        <Section title={s.laserSection} id="op-laser" defaultOpen>
+          <div className="full"><HatchDiagram mode={op.mode} pitch={op.hatchPitch} angle={op.hatchAngle} outline={op.outline !== false} lang={lang} /></div>
+          <NumberField label={s.laserPower} unit="%" value={op.power} min={0} max={100} onChange={(v) => patch({ power: v } as Partial<Operation>)} />
+          <NumberField label={s.laserSpeed} unit="mm/min" value={op.speed} min={1} onChange={(v) => patch({ speed: v } as Partial<Operation>)} />
+          <NumberField label={s.laserPasses} value={op.passes ?? 1} digits={0} min={1} max={50} onChange={(v) => patch({ passes: Math.round(v) } as Partial<Operation>)} />
+          <SelectField label={s.engraveMode} value={op.mode} options={(['vector', 'hatch'] as const).map((m) => ({ value: m, label: s.engraveModes[m] }))} onChange={(v) => patch({ mode: v } as Partial<Operation>)} />
+          {op.mode === 'hatch' && <NumberField label={s.hatchPitch} unit="mm" value={op.hatchPitch} min={0.02} onChange={(v) => patch({ hatchPitch: v } as Partial<Operation>)} />}
+          {op.mode === 'hatch' && <NumberField label={s.hatchAngle} unit="°" value={op.hatchAngle} onChange={(v) => patch({ hatchAngle: v } as Partial<Operation>)} />}
+          {op.mode === 'hatch' && <CheckField label={s.hatchOutline} value={op.outline !== false} onChange={(v) => patch({ outline: v } as Partial<Operation>)} />}
+          <div className="full hint" style={{ margin: 0 }}>{s.laserHint}</div>
+        </Section>
+      )}
+      {!isLaserOp && <Section title={lang === 'de' ? 'Vorschub (überschreiben)' : 'Feed overrides'} id="op-feed" defaultOpen={false}>
         <NumberField label={s.feed} unit="mm/min" value={op.feed?.vf} onChange={(v) => patch({ feed: { ...op.feed, vf: v } })} placeholder={String(tool?.cut.vf ?? '')} />
         <NumberField label={s.plungeFeed} unit="mm/min" value={op.feed?.vfPlunge} onChange={(v) => patch({ feed: { ...op.feed, vfPlunge: v } })} placeholder={String(tool?.cut.vfPlunge ?? '')} />
         <div className="full hint" style={{ margin: 0 }}>{lang === 'de' ? 'Leer = Werte des Werkzeugs.' : 'Empty = tool values.'}</div>
-      </Section>
+      </Section>}
       {(op.type === 'contour' || op.type === 'cutout' || op.type === 'pocket') && (
         <Section title={s.overcut} id="op-overcut" defaultOpen={false}>
           <div className="full"><OvercutDiagram kind={op.overcut.kind} lang={lang} /></div>

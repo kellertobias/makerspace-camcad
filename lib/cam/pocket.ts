@@ -8,8 +8,8 @@ import { nestPaths, pointInPolygon } from '@/lib/geometry/containment';
 import { bbox as pathBBox, closestPoint, flatten, pathEnd, pathLength, polylinePath, reverse, rotateStart, samplePath, signedArea } from '@/lib/geometry/path';
 import { depthPasses } from './depth';
 import { movesAlong, rampEntry, rampLength } from './entry';
+import { rasterLines } from './raster';
 import { applyOvercut } from './overcut';
-import { bboxUnion } from '@/lib/geometry/types';
 
 type PocketOp = Operation & { type: 'pocket' };
 
@@ -83,25 +83,7 @@ export function pocketMoves(paths: Path[], op: PocketOp, ctx: ContourCtx, exclus
       cur = next;
     }
   } else {
-    const b = region.map(pathBBox).reduce(bboxUnion);
-    const ang = (op.rasterAngle * Math.PI) / 180;
-    const dir = { x: Math.cos(ang), y: Math.sin(ang) };
-    const nrm = { x: -dir.y, y: dir.x };
-    const cx = (b.minX + b.maxX) / 2, cy = (b.minY + b.maxY) / 2;
-    const half = Math.hypot(b.maxX - b.minX, b.maxY - b.minY) / 2 + 1;
-    const lines: { x: number; y: number }[][] = [];
-    for (let o = -half; o <= half; o += stepOver) {
-      const px = cx + nrm.x * o, py = cy + nrm.y * o;
-      lines.push([{ x: px - dir.x * half, y: py - dir.y * half }, { x: px + dir.x * half, y: py + dir.y * half }]);
-    }
-    const clipped = clipLines(lines, region)
-      .filter((l) => l.length >= 2 && Math.hypot(l[0].x - l[l.length - 1].x, l[0].y - l[l.length - 1].y) > 0.05)
-      // Clipper returns open paths in arbitrary direction: make every line run along +dir first
-      .map((l) => { const e = l[l.length - 1]; return (e.x - l[0].x) * dir.x + (e.y - l[0].y) * dir.y < 0 ? [...l].reverse() : l; });
-    const keyed = clipped.map((l) => ({ l, o: (l[0].x - cx) * nrm.x + (l[0].y - cy) * nrm.y, a: (l[0].x - cx) * dir.x + (l[0].y - cy) * dir.y }));
-    keyed.sort((p, q) => p.o - q.o || p.a - q.a);
-    let flip = false, lastO = Infinity;
-    const lines2 = keyed.map((k) => { if (Math.abs(k.o - lastO) > 1e-6) { flip = !flip; lastO = k.o; } return flip ? [...k.l].reverse() : k.l; });
+    const lines2 = rasterLines(region, stepOver, op.rasterAngle);
     if (op.strategy === 'zigzag') {
       // chain neighbouring lines into one continuous path: across, step over along the wall, back, ...
       // a connection is only made when the two ends are adjacent (one step-over apart), otherwise the tool lifts

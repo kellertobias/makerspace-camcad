@@ -54,6 +54,7 @@ export function AppShell() {
           u.setFile(rec.fileName ?? null);
           u.setDirty(!!rec.dirty);
           if (rec.handle) setCurrentHandle(rec.handle);
+          if (useLibrary.getState().machines.some((m) => m.id === p.machineId)) useLibrary.getState().setActiveMachine(p.machineId);
           if (rec.selection) {
             const sel = rec.selection;
             u.select({

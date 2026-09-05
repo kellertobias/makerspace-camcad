@@ -7,6 +7,7 @@ import { useUi } from '@/lib/store/ui';
 import { useProject } from '@/lib/store/project';
 import { useLibrary } from '@/lib/store/library';
 import { t } from '@/lib/i18n';
+import { toolsForMachine } from '@/lib/persist/libraryFiles';
 import { BUILT_IN_FONTS, addUserFont, listUserFonts, loadFont, type FontEntry } from '@/lib/text/fonts';
 import { textToPaths, estimateMinStroke } from '@/lib/geometry/text';
 import { offsetClosed } from '@/lib/geometry/offset';
@@ -147,7 +148,7 @@ export function TextModal() {
           <NumberField label={s.letterSpacing} unit="mm" value={spec.letterSpacing ?? 0} onChange={(v) => setSpec({ ...spec, letterSpacing: v })} />
           <SelectField label={s.align} value={spec.align ?? 'left'} options={(['left', 'center', 'right'] as const).map((a) => ({ value: a, label: s.aligns[a] }))} onChange={(v) => setSpec({ ...spec, align: v })} />
           <NumberField label={lang === 'de' ? 'Zeilenhöhe (× Höhe)' : 'Line height (× size)'} value={spec.lineHeight ?? 1.2} min={0.5} onChange={(v) => setSpec({ ...spec, lineHeight: v })} />
-          <SelectField label={s.textTool} value={toolId} options={lib.tools.map((tl) => ({ value: tl.id, label: `T${tl.slot} ${tl.name} (Ø${tl.d}${tl.kind === 'vbit' ? `, ${tl.tipAngle ?? 90}°` : ''})` }))} onChange={setToolId} />
+          <SelectField label={s.textTool} value={toolId} options={toolsForMachine(lib.tools, lib.machines.find((m) => m.id === project.machineId)).map((tl) => ({ value: tl.id, label: `T${tl.slot} ${tl.name} (Ø${tl.d}${tl.kind === 'vbit' ? `, ${tl.tipAngle ?? 90}°` : ''})` }))} onChange={setToolId} />
           <SelectField label={s.textOp} value={opType} options={(['engrave', 'pocket', 'contour', 'none'] as TextOp[]).map((o) => ({ value: o, label: s.textOps[o] }))} onChange={setOpType} />
           <div className="full hint" style={{ margin: 0 }}>
             {paths.length > 0 && <div>{s.minStroke(minStroke.toFixed(2))}</div>}
