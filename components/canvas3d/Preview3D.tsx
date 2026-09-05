@@ -24,6 +24,24 @@ interface Scene {
   renderer: THREE.WebGLRenderer; scene: THREE.Scene; camera: THREE.PerspectiveCamera; controls: OrbitControls;
   stock: THREE.Mesh | null; sides: THREE.Mesh | null; tool: THREE.Mesh | null; paths: THREE.LineSegments | null; rapids: THREE.LineSegments | null;
   nx: number; ny: number;
+  /** render on the next frame */
+  dirty: boolean;
+}
+
+/** Position-only grid over the machined region; cached because building millions of vertices takes seconds. */
+function buildGrid(nx: number, ny: number, cell: number, ox: number, oy: number, z: number): THREE.BufferGeometry {
+  const pos = new Float32Array(nx * ny * 3);
+  for (let j = 0, k = 0; j < ny; j++) { const y = oy + j * cell; for (let i = 0; i < nx; i++, k += 3) { pos[k] = ox + i * cell; pos[k + 1] = y; pos[k + 2] = z; } }
+  const idx = new Uint32Array((nx - 1) * (ny - 1) * 6);
+  for (let j = 0, k = 0; j < ny - 1; j++) for (let i = 0; i < nx - 1; i++) {
+    const a = j * nx + i, b = a + 1, c = a + nx, d = c + 1;
+    idx[k++] = a; idx[k++] = b; idx[k++] = d; idx[k++] = a; idx[k++] = d; idx[k++] = c;
+  }
+  const g = new THREE.BufferGeometry();
+  g.setAttribute('position', new THREE.BufferAttribute(pos, 3));
+  g.setIndex(new THREE.BufferAttribute(idx, 1));
+  g.computeBoundingSphere();
+  return g;
 }
 
 export default function Preview3D() {
@@ -46,6 +64,7 @@ export default function Preview3D() {
   const framedRef = useRef('');
   const heightsRef = useRef<Float32Array | null>(null);
   const frameRef = useRef<(() => void) | null>(null);
+  const gridRef = useRef<{ key: string; geo: THREE.BufferGeometry } | null>(null);
 
   // --- simulation input -----------------------------------------------------
   const sim = useMemo(() => {
@@ -86,7 +105,7 @@ export default function Preview3D() {
     const wrap = wrapRef.current;
     if (!wrap) return;
     const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
-    renderer.setPixelRatio(Math.min(2, window.devicePixelRatio || 1));
+    renderer.setPixelRatio(Math.min(1.5, window.devicePixelRatio || 1));
     wrap.appendChild(renderer.domElement);
     const scene = new THREE.Scene();
     const camera = new THREE.PerspectiveCamera(40, 1, 1, 20000);
@@ -98,14 +117,15 @@ export default function Preview3D() {
     scene.add(new THREE.HemisphereLight(0xffffff, 0x445566, 1.1));
     const sun = new THREE.DirectionalLight(0xffffff, 1.4); sun.position.set(-300, -500, 800); scene.add(sun);
     const sun2 = new THREE.DirectionalLight(0xffffff, 0.5); sun2.position.set(600, 400, 300); scene.add(sun2);
-    const sc: Scene = { renderer, scene, camera, controls, stock: null, sides: null, tool: null, paths: null, rapids: null, nx: 0, ny: 0 };
+    const sc: Scene = { renderer, scene, camera, controls, stock: null, sides: null, tool: null, paths: null, rapids: null, nx: 0, ny: 0, dirty: true };
     sceneRef.current = sc;
     let raf = 0;
-    const loop = () => { controls.update(); renderer.render(scene, camera); raf = requestAnimationFrame(loop); };
+    // render only when the camera moved or the scene changed (the heightmap can be millions of triangles)
+    const loop = () => { const moved = controls.update(); if (moved || sc.dirty) { sc.dirty = false; renderer.render(scene, camera); } raf = requestAnimationFrame(loop); };
     loop();
     let sized = false;
     const ro = new ResizeObserver(() => {
-      const r = wrap.getBoundingClientRect(); renderer.setSize(r.width, r.height, false); camera.aspect = r.width / Math.max(1, r.height); camera.updateProjectionMatrix();
+      const r = wrap.getBoundingClientRect(); renderer.setSize(r.width, r.height, false); camera.aspect = r.width / Math.max(1, r.height); camera.updateProjectionMatrix(); sc.dirty = true;
       if (!sized && r.width > 0) { sized = true; frameRef.current?.(); }
     });
     ro.observe(wrap);
@@ -121,32 +141,63 @@ export default function Preview3D() {
     const sheetW = sim.sheet.width, sheetH = sim.sheet.height;
     const nx = Math.max(2, Math.ceil(width / cell) + 1), ny = Math.max(2, Math.ceil(height / cell) + 1);
     const tex = makeTexture(project.stock.material);
-    // top surface of the machined region as a displaced plane; UVs in tile units of the sheet so textures are seamless
-    const geo = new THREE.PlaneGeometry((nx - 1) * cell, (ny - 1) * cell, nx - 1, ny - 1);
-    geo.translate(ox + ((nx - 1) * cell) / 2, oy + ((ny - 1) * cell) / 2, thickness);
-    const colors = new Float32Array(nx * ny * 3).fill(1);
-    geo.setAttribute('color', new THREE.BufferAttribute(colors, 3));
-    { const p = geo.getAttribute('position'); const uv = geo.getAttribute('uv') as THREE.BufferAttribute; for (let i = 0; i < p.count; i++) uv.setXY(i, p.getX(i) / tex.tileMm, p.getY(i) / tex.tileMm); uv.needsUpdate = true; }
+    // Top surface: a static position-only grid; heights, colours and normals come from textures / the GPU.
+    const gridKey = `${nx}x${ny}x${cell}x${ox}x${oy}x${thickness}`;
+    if (gridRef.current?.key !== gridKey) { gridRef.current?.geo.dispose(); gridRef.current = { key: gridKey, geo: buildGrid(nx, ny, cell, ox, oy, thickness) }; }
+    const geo = gridRef.current.geo;
+    const H = new Float32Array(nx * ny).fill(thickness);
+    const OPM = new Uint8Array(nx * ny).fill(255);
+    heightsRef.current = H;
+    const mkData = (data: Float32Array | Uint8Array, type: THREE.TextureDataType) => { const t = new THREE.DataTexture(data, nx, ny, THREE.RedFormat, type); t.magFilter = THREE.NearestFilter; t.minFilter = THREE.NearestFilter; t.generateMipmaps = false; t.flipY = false; t.unpackAlignment = 1; return t; };
+    const heightTex = mkData(H, THREE.FloatType); heightTex.needsUpdate = true;
+    const opTex = mkData(OPM, THREE.UnsignedByteType); opTex.needsUpdate = true;
+    // sources for partial uploads: same arrays, never bound, so copyTextureToTexture takes the CPU data path
+    const heightSrc = mkData(H, THREE.FloatType), opSrc = mkData(OPM, THREE.UnsignedByteType);
+    // palette: operation index -> colour (255 = untouched)
+    const pal = new Uint8Array(256 * 4).fill(255);
+    sim.opTypes.forEach((ty, i) => { const c = new THREE.Color(OP_TYPE_COLORS[ty] ?? '#888'); pal[i * 4] = Math.round((0.45 + 0.55 * c.r) * 255); pal[i * 4 + 1] = Math.round((0.45 + 0.55 * c.g) * 255); pal[i * 4 + 2] = Math.round((0.45 + 0.55 * c.b) * 255); pal[i * 4 + 3] = 255; });
+    const palTex = new THREE.DataTexture(pal, 256, 1, THREE.RGBAFormat, THREE.UnsignedByteType); palTex.magFilter = THREE.NearestFilter; palTex.minFilter = THREE.NearestFilter; palTex.needsUpdate = true;
     const layers = project.stock.material === 'plywood' ? (Math.max(3, Math.round(thickness / 1.6)) | 1) : 0;
-    const mat = new THREE.MeshStandardMaterial({ map: tex.texture, vertexColors: true, color: tex.color, metalness: tex.metalness, roughness: tex.roughness, side: THREE.DoubleSide });
-    // height-dependent shading: plywood layers (alternating bands by Z) and slightly darker cut walls
+    const mat = new THREE.MeshStandardMaterial({ map: tex.texture, color: tex.color, metalness: tex.metalness, roughness: tex.roughness, side: THREE.DoubleSide, flatShading: true });
     mat.onBeforeCompile = (shader) => {
-      shader.uniforms.uLayer = { value: layers ? thickness / layers : 0 };
-      shader.uniforms.uThick = { value: thickness };
+      Object.assign(shader.uniforms, {
+        uHeight: { value: heightTex }, uOp: { value: opTex }, uPalette: { value: palTex },
+        uGrid: { value: new THREE.Vector4(ox, oy, nx, ny) }, uCell: { value: cell }, uTile: { value: tex.tileMm },
+        uLayer: { value: layers ? thickness / layers : 0 }, uThick: { value: thickness },
+      });
       shader.vertexShader = shader.vertexShader
-        .replace('#include <common>', '#include <common>\nvarying float vZ; varying float vNz;')
-        .replace('#include <beginnormal_vertex>', '#include <beginnormal_vertex>\nvNz = objectNormal.z;')
-        .replace('#include <begin_vertex>', '#include <begin_vertex>\nvZ = transformed.z;');
+        .replace('#include <common>', '#include <common>\nuniform sampler2D uHeight; uniform vec4 uGrid; uniform float uCell; varying float vZ; varying vec2 vGuv; varying vec2 vWxy;')
+        .replace('#include <begin_vertex>', `#include <begin_vertex>
+        vGuv = ((position.xy - uGrid.xy) / uCell + 0.5) / uGrid.zw;
+        transformed.z = max(0.0, texture2D(uHeight, vGuv).r); // the mesh never dips below the bed
+        vZ = transformed.z; vWxy = position.xy;`);
       shader.fragmentShader = shader.fragmentShader
-        .replace('#include <common>', '#include <common>\nvarying float vZ; varying float vNz; uniform float uLayer; uniform float uThick;')
+        .replace('#include <common>', '#include <common>\nuniform sampler2D uHeight; uniform sampler2D uOp; uniform sampler2D uPalette; uniform float uTile; uniform float uLayer; uniform float uThick; varying float vZ; varying vec2 vGuv; varying vec2 vWxy;')
+        // wood texture tiled in sheet millimetres (no uv attribute on the grid)
+        .replace('#include <map_fragment>', `#ifdef USE_MAP
+        diffuseColor *= texture2D(map, vWxy / uTile);
+        #endif`)
+        // cell colour: red = cut below the stock, blue = exactly through, otherwise tinted by the operation that cut it
         .replace('#include <color_fragment>', `#include <color_fragment>
-        if (uLayer > 0.0 && vZ > 0.02) {
-          float band = mod(floor((uThick - vZ - 0.001) / uLayer), 2.0);
-          diffuseColor.rgb *= mix(1.0, 0.68, band);
-        }
-        diffuseColor.rgb *= mix(0.78, 1.0, clamp(abs(vNz), 0.0, 1.0));`);
+        {
+          float hv = texture2D(uHeight, vGuv).r;
+          float opv = texture2D(uOp, vGuv).r;
+          vec3 tint = hv < -0.01 ? vec3(1.0, 0.15, 0.15) : (hv <= 0.01 ? vec3(0.2, 0.45, 1.0) : (opv > 0.999 ? vec3(1.0) : texture2D(uPalette, vec2((opv * 255.0 + 0.5) / 256.0, 0.5)).rgb));
+          diffuseColor.rgb *= tint;
+          if (uLayer > 0.0 && vZ > 0.02) {
+            float band = mod(floor((uThick - vZ - 0.001) / uLayer), 2.0);
+            diffuseColor.rgb *= mix(1.0, 0.68, band);
+          }
+        }`)
+        // slightly darker cut walls: the flat-shaded normal is in view space, compare with the world up axis
+        .replace('#include <normal_fragment_begin>', `#include <normal_fragment_begin>
+        {
+          float nz = abs(dot(normal, normalize((viewMatrix * vec4(0.0, 0.0, 1.0, 0.0)).xyz)));
+          diffuseColor.rgb *= mix(0.78, 1.0, clamp(nz, 0.0, 1.0));
+        }`);
     };
     const stock = new THREE.Mesh(geo, mat);
+    stock.frustumCulled = false;
     // untouched part of the sheet around the region: flat quads at the top surface with the same texture
     const frame: number[] = [], frameUv: number[] = [];
     const quad = (x0: number, y0: number, x1: number, y1: number) => {
@@ -180,11 +231,11 @@ export default function Preview3D() {
     const toolGroup = new THREE.Mesh(new THREE.CylinderGeometry(3, 3, 40, 24), new THREE.MeshStandardMaterial({ color: 0x8fb8ff, metalness: 0.6, roughness: 0.3, transparent: true, opacity: 0.9 }));
     toolGroup.rotation.x = Math.PI / 2; toolGroup.visible = showTool;
     // remove previous
-    for (const k of ['stock', 'sides', 'tool', 'paths', 'rapids'] as const) { const o = sc[k]; if (o) { sc.scene.remove(o); o.geometry.dispose(); } }
+    for (const k of ['stock', 'sides', 'tool', 'paths', 'rapids'] as const) { const o = sc[k]; if (o) { sc.scene.remove(o); if (k !== 'stock') o.geometry.dispose(); else { const m = (o as THREE.Mesh).material as THREE.MeshStandardMaterial; m.dispose(); } } }
     sc.scene.children.filter((c) => c.userData.static).forEach((c) => sc.scene.remove(c));
     bed.userData.static = true; grid.userData.static = true;
     sc.scene.add(bed, grid, frameMesh, box, stock, toolGroup);
-    sc.stock = stock; sc.sides = box; sc.tool = toolGroup; sc.nx = nx; sc.ny = ny;
+    sc.stock = stock; sc.sides = box; sc.tool = toolGroup; sc.nx = nx; sc.ny = ny; sc.dirty = true;
     // toolpath lines
     const cut: number[] = [], rap: number[] = [];
     const z0 = sim.cfg.zero;
@@ -219,6 +270,7 @@ export default function Preview3D() {
         sc.camera.position.copy(target).addScaledVector(dir, dist);
         sc.controls.target.copy(target);
         sc.controls.update();
+        sc.dirty = true;
       };
       frameRef.current();
     }
@@ -227,49 +279,23 @@ export default function Preview3D() {
     const w = new Worker(new URL('../../workers/cam.worker.ts', import.meta.url));
     workerRef.current = w;
     setStatus('simulating');
-    heightsRef.current = new Float32Array(nx * ny).fill(thickness);
-    const cols = new Map<string, [number, number, number]>();
-    const colorOf = (op: number): [number, number, number] => { const ty = sim.opTypes[op] ?? 'contour'; let c = cols.get(ty); if (!c) { const cc = new THREE.Color(OP_TYPE_COLORS[ty] ?? '#888'); c = [0.45 + 0.55 * cc.r, 0.45 + 0.55 * cc.g, 0.45 + 0.55 * cc.b]; cols.set(ty, c); } return c; };
-    // Apply changed rows j0..j1: copy heights, update vertex z + colour, recompute normals locally from the heightmap.
-    const applyRows = (j0: number, j1: number, h: Float32Array, opMap: Uint8Array) => {
-      const st = sc.stock, H = heightsRef.current; if (!st || !H || j1 < j0) return;
-      const pos = st.geometry.getAttribute('position') as THREE.BufferAttribute;
-      const col = st.geometry.getAttribute('color') as THREE.BufferAttribute;
-      const nrm = st.geometry.getAttribute('normal') as THREE.BufferAttribute;
-      H.set(h, j0 * nx);
-      // PlaneGeometry rows run from +y to -y; heightmap rows run from y=0 upwards
-      const THROUGH = 0.01; // mm tolerance for "exactly through"
-      for (let j = j0; j <= j1; j++) {
-        const row = ny - 1 - j;
-        for (let i = 0; i < nx; i++) {
-          const src = j * nx + i, dst = row * nx + i, local = (j - j0) * nx + i;
-          const hv = h[local];
-          pos.setZ(dst, Math.max(0, hv)); // the mesh never dips below the bed
-          const op = opMap[local];
-          if (hv < -THROUGH) col.setXYZ(dst, 1.0, 0.15, 0.15);        // cut deeper than the stock: red
-          else if (hv <= THROUGH) col.setXYZ(dst, 0.2, 0.45, 1.0);     // cut exactly through: blue floor
-          else if (op !== 255) { const c = colorOf(op); col.setXYZ(dst, c[0], c[1], c[2]); }
-          else col.setXYZ(dst, 1, 1, 1);
-        }
-      }
-      const ja = Math.max(0, j0 - 1), jb = Math.min(ny - 1, j1 + 1);
-      for (let j = ja; j <= jb; j++) {
-        const row = ny - 1 - j;
-        for (let i = 0; i < nx; i++) {
-          const hl = Math.max(0, H[j * nx + Math.max(0, i - 1)]), hr = Math.max(0, H[j * nx + Math.min(nx - 1, i + 1)]);
-          const hd = Math.max(0, H[Math.max(0, j - 1) * nx + i]), hu = Math.max(0, H[Math.min(ny - 1, j + 1) * nx + i]);
-          const dzdx = (hr - hl) / (2 * cell), dzdy = (hu - hd) / (2 * cell);
-          const len = Math.hypot(dzdx, dzdy, 1);
-          nrm.setXYZ(row * nx + i, -dzdx / len, -dzdy / len, 1 / len);
-        }
-      }
-      const rowA = ny - 1 - jb, rowB = ny - 1 - ja; // geometry rows (ascending)
-      for (const attr of [pos, col, nrm]) { attr.clearUpdateRanges(); attr.addUpdateRange(rowA * nx * 3, (rowB - rowA + 1) * nx * 3); attr.needsUpdate = true; }
+    // Apply a changed rectangle: copy into the CPU arrays, then upload just that region of the two textures.
+    const applyRect = (i0: number, i1: number, j0: number, j1: number, h: Float32Array, opMap: Uint8Array) => {
+      if (j1 < j0 || i1 < i0) return;
+      const wdt = i1 - i0 + 1;
+      for (let j = j0; j <= j1; j++) { const from = (j - j0) * wdt, to = j * nx + i0; H.set(h.subarray(from, from + wdt), to); OPM.set(opMap.subarray(from, from + wdt), to); }
+      const region = new THREE.Box2(new THREE.Vector2(i0, j0), new THREE.Vector2(i1 + 1, j1 + 1));
+      const at = new THREE.Vector2(i0, j0);
+      try {
+        sc.renderer.copyTextureToTexture(heightSrc, heightTex, region, at);
+        sc.renderer.copyTextureToTexture(opSrc, opTex, region, at);
+      } catch { heightTex.needsUpdate = true; opTex.needsUpdate = true; }
+      sc.dirty = true;
     };
     w.onmessage = (e: MessageEvent<WorkerResponse>) => {
       const msg = e.data;
       if (msg.type !== 'result') return;
-      if (msg.j1 >= msg.j0) applyRows(msg.j0, msg.j1, msg.heights, msg.opMap);
+      if (msg.j1 >= msg.j0) applyRect(msg.i0, msg.i1, msg.j0, msg.j1, msg.heights, msg.opMap);
       setStatus(msg.done ? 'done' : 'simulating');
     };
     const init: WorkerRequest = { type: 'init', cfg: sim.cfg };
@@ -296,11 +322,12 @@ export default function Preview3D() {
       sc.tool.position.set(pos.x + sim.cfg.zero.x, pos.y + sim.cfg.zero.y, zH + 20);
       sc.tool.visible = showTool && progress < 1;
     }
+    sc.dirty = true;
     // the material follows the tool: simulate up to the tool's position inside the current move
     workerRef.current?.postMessage({ type: 'simulate', index: progress >= 1 ? sim.cfg.moves.length : pos.index, frac: progress >= 1 ? 1 : pos.t } as WorkerRequest);
   }, [progress, sim, showTool]);
 
-  useEffect(() => { const sc = sceneRef.current; if (sc?.paths) sc.paths.visible = showPaths; if (sc?.rapids) sc.rapids.visible = showPaths; }, [showPaths]);
+  useEffect(() => { const sc = sceneRef.current; if (sc?.paths) sc.paths.visible = showPaths; if (sc?.rapids) sc.rapids.visible = showPaths; if (sc) sc.dirty = true; }, [showPaths]);
 
   // --- playback ---------------------------------------------------------------
   useEffect(() => {

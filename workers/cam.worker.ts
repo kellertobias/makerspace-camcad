@@ -7,8 +7,8 @@ export type WorkerRequest =
   | { type: 'simulate'; index: number; frac: number };
 export type WorkerResponse =
   | { type: 'ready'; nx: number; ny: number; moves: number }
-  /** Changed rows j0..j1 (inclusive) as full-width slices. */
-  | { type: 'result'; j0: number; j1: number; heights: Float32Array; opMap: Uint8Array; done: boolean };
+  /** Changed cells as a rectangle i0..i1 × j0..j1 (inclusive), row-major with width i1 - i0 + 1. */
+  | { type: 'result'; i0: number; i1: number; j0: number; j1: number; heights: Float32Array; opMap: Uint8Array; done: boolean };
 
 let sim: Simulator | null = null;
 let target = { index: 0, frac: 1 };
@@ -18,10 +18,15 @@ let running = false;
 function postDirty(done: boolean) {
   if (!sim) return;
   const d = sim.takeDirty();
-  if (!d) { if (done) (self as unknown as Worker).postMessage({ type: 'result', j0: 0, j1: -1, heights: new Float32Array(0), opMap: new Uint8Array(0), done } satisfies WorkerResponse); return; }
-  const from = d.j0 * sim.nx, to = (d.j1 + 1) * sim.nx;
-  const heights = sim.heights.slice(from, to), opMap = sim.opMap.slice(from, to);
-  (self as unknown as Worker).postMessage({ type: 'result', j0: d.j0, j1: d.j1, heights, opMap, done } satisfies WorkerResponse, [heights.buffer, opMap.buffer]);
+  if (!d) { if (done) (self as unknown as Worker).postMessage({ type: 'result', i0: 0, i1: -1, j0: 0, j1: -1, heights: new Float32Array(0), opMap: new Uint8Array(0), done } satisfies WorkerResponse); return; }
+  const w = d.i1 - d.i0 + 1, h = d.j1 - d.j0 + 1;
+  const heights = new Float32Array(w * h), opMap = new Uint8Array(w * h);
+  for (let j = 0; j < h; j++) {
+    const from = (d.j0 + j) * sim.nx + d.i0;
+    heights.set(sim.heights.subarray(from, from + w), j * w);
+    opMap.set(sim.opMap.subarray(from, from + w), j * w);
+  }
+  (self as unknown as Worker).postMessage({ type: 'result', i0: d.i0, i1: d.i1, j0: d.j0, j1: d.j1, heights, opMap, done } satisfies WorkerResponse, [heights.buffer, opMap.buffer]);
 }
 
 function pump() {
