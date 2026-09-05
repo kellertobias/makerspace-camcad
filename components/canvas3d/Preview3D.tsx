@@ -185,7 +185,7 @@ export default function Preview3D() {
           vec3 tint = hv < -0.01 ? vec3(1.0, 0.15, 0.15) : (hv <= 0.01 ? vec3(0.2, 0.45, 1.0) : (opv > 0.999 ? vec3(1.0) : texture2D(uPalette, vec2((opv * 255.0 + 0.5) / 256.0, 0.5)).rgb));
           diffuseColor.rgb *= tint;
           if (uLayer > 0.0 && vZ > 0.02) {
-            float band = mod(floor((uThick - vZ - 0.001) / uLayer), 2.0);
+            float band = mod(floor((uThick - vZ) / uLayer + 0.001), 2.0); // the top surface is the first (light) layer
             diffuseColor.rgb *= mix(1.0, 0.68, band);
           }
         }`)

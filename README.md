@@ -7,6 +7,28 @@ feed, duration, limit violations) and also explains G-code you paste in yourself
 (Next.js `output: 'export'`), no server. The original cutting-data
 calculator lives on at `/calc/` and is embedded in the tool editor.
 
+## Screenshots
+
+**2D layout** – imported DXF/SVG outlines on the sheet, operations in execution order in the tree, the milled area (Fräsbild)
+and tool paths as layers, and the selected operation's parameters with a live diagram on the right.
+
+![2D layout with operations and parameter diagram](docs/screenshots/layout-2d.png)
+
+**3D preview** – material simulation on a heightmap: plywood layers on the cut walls, pockets and engravings tinted by
+operation, through-cuts shown as blue floors and over-cuts in red, with tool animation and playback.
+
+![3D material preview](docs/screenshots/preview-3d.png)
+
+**G-code** – the generated program with a plain-language explanation for every line, warnings, and download for the
+selected machine's post-processor.
+
+![G-code view with line explanations](docs/screenshots/gcode.png)
+
+**Tool library** – tools with a diagram of their parameters (diameter, flutes, cutting length, step-down, step-over, ramp
+angle) and the embedded cutting-data assistant.
+
+![Tool editor with parameter diagram](docs/screenshots/tools.png)
+
 ## ⚠ Safety
 
 This is a **custom G-code generator** — you use the generated programs **at your own risk**. G-code is not really
@@ -23,6 +45,7 @@ npm run dev        # development
 npm run build      # static export to out/
 npm start          # serve out/
 npm test           # vitest (geometry, CAM, post-processor)
+npm run screenshots  # re-render docs/screenshots/ from out/ with the local Chrome (needs npm run build first)
 ```
 
 ## Deployment
