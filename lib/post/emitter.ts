@@ -1,0 +1,131 @@
+import type { Move, Program } from '@/lib/cam/types';
+import type { PostProfile, WordName, WordSpec, ExportResult } from './types';
+import { expand, splitLines } from './template';
+import { arcSweep, arcSteps } from '@/lib/geometry/arcs';
+import { formatHms } from '@/lib/cam/time';
+
+export function formatNumber(v: number, spec: WordSpec, decimal: '.' | ','): string {
+  const f = spec.format || '';
+  const scaled = v * (spec.scale || 1);
+  let s: string;
+  const m = /^0?(?:\.(0*)(#*))?$/.exec(f);
+  if (m) {
+    const fixed = m[1]?.length ?? 0, opt = m[2]?.length ?? 0;
+    s = scaled.toFixed(fixed + opt);
+    if (opt > 0 && s.includes('.')) { s = s.replace(/0+$/, ''); if (fixed === 0) s = s.replace(/\.$/, ''); else { const [a, b] = s.split('.'); s = `${a}.${(b ?? '').padEnd(fixed, '0')}`; } }
+  } else s = scaled.toFixed(4);
+  if (/^-0(\.0*)?$/.test(s)) s = s.slice(1); // avoid "-0.0000"
+  return decimal === ',' ? s.replace('.', ',') : s;
+}
+
+interface State { x?: number; y?: number; z?: number; f?: number; s?: number; cmd?: string; n: number }
+
+/** Render a machine-independent Program to G-code text according to a post profile. */
+export function emitGcode(program: Program, profile: PostProfile, safeZ: number, opts: { version?: string; date?: string } = {}): ExportResult {
+  const out: string[] = [];
+  const warnings: string[] = [...program.warnings];
+  const safeNameEarly = (program.meta.project || 'program').replace(/[^\w.-]+/g, '_');
+  if (!program.tools.length) return { filename: `${safeNameEarly}.${profile.ext || 'nc'}`, text: '', warnings };
+  const st: State = { n: profile.lineNumbers.start };
+  const words = profile.words;
+  const enabled = (Object.keys(words) as WordName[]).filter((w) => words[w].enable && words[w].name).sort((a, b) => words[a].order - words[b].order);
+  const cmdOrder = (profile.raw?.['Command order'] ? Number(profile.raw['Command order']) : 1);
+
+  const pushLine = (line: string) => { if (line.length) out.push(line); };
+  const pushBlock = (block: string, vars: Record<string, string | number | undefined>) => {
+    for (const l of splitLines(expand(block, vars))) if (l.trim().length || l === '') { if (l.length) pushLine(l); }
+  };
+
+  const fmtWord = (w: WordName, v: number) => `${words[w].name}${formatNumber(v, words[w], profile.decimal)}`;
+  const lineNo = () => { if (!words.N.enable || !words.N.name) return null; const s = `${words.N.name}${st.n}`; st.n += profile.lineNumbers.step; return s; };
+
+  /** Emit a motion line. `vals` are the candidate word values; words with repeat=false are dropped when unchanged. */
+  const motion = (cmd: string, vals: Partial<Record<WordName, number>>, force = false) => {
+    const parts: string[] = [];
+    let changedAny = false;
+    const entries: { order: number; text: string }[] = [];
+    for (const w of enabled) {
+      if (w === 'N') continue;
+      const v = vals[w];
+      if (v === undefined) continue;
+      const key = w.toLowerCase() as 'x' | 'y' | 'z' | 'f' | 's';
+      const prev = (w === 'I' || w === 'J') ? undefined : st[key as keyof State] as number | undefined;
+      const same = prev !== undefined && Math.abs(prev - v) < 1e-9;
+      if (w !== 'I' && w !== 'J') (st as unknown as Record<string, number | undefined>)[key] = v;
+      if (same && !words[w].repeat && !force) continue;
+      if (!same || force) changedAny = true;
+      entries.push({ order: words[w].order, text: fmtWord(w, v) });
+    }
+    if (!entries.length) return; // nothing moved
+    void changedAny;
+    const showCmd = profile.commandRepeat || st.cmd !== cmd;
+    st.cmd = cmd;
+    const n = lineNo();
+    if (n) entries.push({ order: words.N.order, text: n });
+    if (showCmd) entries.push({ order: cmdOrder, text: cmd });
+    entries.sort((a, b) => a.order - b.order);
+    for (const e of entries) parts.push(e.text);
+    pushLine(parts.join(profile.delimiter));
+  };
+
+  const emitArc = (m: Move & { k: 'arc' }) => {
+    const x0 = st.x ?? m.x, y0 = st.y ?? m.y;
+    if (!profile.useArcs) {
+      const r = Math.hypot(x0 - m.cx, y0 - m.cy);
+      const sweep = arcSweep({ x: x0, y: y0 }, { x: m.x, y: m.y }, { x: m.cx, y: m.cy }, m.cw);
+      const n = Math.max(1, arcSteps(r, Math.abs(sweep), 0.01));
+      const a0 = Math.atan2(y0 - m.cy, x0 - m.cx);
+      const z0 = st.z ?? m.z ?? 0, z1 = m.z ?? z0;
+      for (let k = 1; k <= n; k++) {
+        const a = a0 + (sweep * k) / n;
+        motion(profile.cmds.linear, { X: k === n ? m.x : m.cx + r * Math.cos(a), Y: k === n ? m.y : m.cy + r * Math.sin(a), Z: m.z === undefined ? undefined : z0 + ((z1 - z0) * k) / n, F: m.f, S: m.s });
+      }
+      return;
+    }
+    const I = profile.ijRelative ? m.cx - x0 : m.cx;
+    const J = profile.ijRelative ? m.cy - y0 : m.cy;
+    // X/Y must always be written for arcs even if unchanged (full circle) – force them
+    const vals: Partial<Record<WordName, number>> = { X: m.x, Y: m.y, Z: m.z, I, J, F: m.f, S: m.s };
+    const prevX = st.x, prevY = st.y;
+    st.x = undefined; st.y = undefined; // force X/Y output
+    motion(m.cw ? profile.cmds.cw : profile.cmds.ccw, vals);
+    void prevX; void prevY;
+  };
+
+  const toolLines = [...new Set(program.tools.map((t) => t.tool.name))].map((n) => `(${n})`).join('\n');
+  const first = program.tools[0];
+  const vars = {
+    project: program.meta.project, version: opts.version ?? program.meta.version, build: opts.version ?? program.meta.version,
+    time: formatHms(program.meta.seconds), tools: toolLines, date: opts.date ?? new Date().toISOString().slice(0, 10),
+    t: first?.tool.slot ?? 1, n: first?.tool.name ?? '', s: first?.s ?? 0, d: first?.tool.d ?? 0,
+  };
+  pushBlock(profile.blocks.programStart, vars);
+  if (first) motion(profile.cmds.rapid, { Z: safeZ });
+
+  program.tools.forEach((tp, ti) => {
+    if (ti > 0) {
+      pushBlock(profile.blocks.toolChange, { ...vars, t: tp.tool.slot, n: tp.tool.name, s: tp.s, d: tp.tool.d });
+      st.f = undefined; st.s = undefined; st.cmd = undefined;
+    }
+    for (const op of tp.ops) {
+      pushBlock(profile.blocks.opStart, { order: op.order, op: op.typeLabel, name: op.name, t: tp.tool.slot, n: tp.tool.name, s: tp.s, d: tp.tool.d });
+      warnings.push(...op.warnings.map((w) => `${op.name}: ${w}`));
+      for (const m of op.moves) {
+        switch (m.k) {
+          case 'rapid': motion(profile.cmds.rapid, { X: m.x, Y: m.y, Z: m.z }, m.force); break;
+          case 'line': motion(profile.cmds.linear, { X: m.x, Y: m.y, Z: m.z, F: m.f, S: m.s }); break;
+          case 'arc': emitArc(m); break;
+          case 'dwell': if (profile.blocks.dwell) pushBlock(profile.blocks.dwell, { seconds: m.seconds, ms: Math.round(m.seconds * 1000) }); break;
+          case 'spindle': pushBlock(m.on ? profile.blocks.laserOn : profile.blocks.laserOff, { s: m.s ?? 0 }); break;
+          case 'coolant': pushBlock(m.mode === 'mist' ? profile.blocks.mistOn : m.mode === 'flood' ? profile.blocks.floodOn : profile.blocks.mistOff, {}); break;
+          case 'comment': pushLine(`(${m.text})`); break;
+        }
+      }
+    }
+  });
+  if (first) { motion(profile.cmds.rapid, { Z: safeZ }); motion(profile.cmds.rapid, { X: 0, Y: 0 }); }
+  pushBlock(profile.blocks.programEnd, vars);
+  const eol = profile.raw?.['Line end'] === 'CRLF' ? '\r\n' : '\n';
+  const safeName = (program.meta.project || 'program').replace(/[^\w.-]+/g, '_');
+  return { filename: `${safeName}.${profile.ext || 'nc'}`, text: out.join(eol) + eol, warnings };
+}

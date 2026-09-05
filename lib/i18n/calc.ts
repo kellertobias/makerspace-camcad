@@ -1,4 +1,4 @@
-import { fmt, type Message } from './solver';
+import { fmt, type Message } from '../solver';
 
 export type Lang = 'de' | 'en';
 export const other = (l: Lang): Lang => (l === 'de' ? 'en' : 'de');

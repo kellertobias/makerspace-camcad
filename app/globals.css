@@ -109,3 +109,152 @@ input.computed { background: var(--computed); color: var(--computed-text); borde
 .btn.small { padding: 3px 8px; font-size: 0.8rem; }
 
 .machineinfo { color: var(--muted); font-size: 0.85rem; margin: 0 0 12px; line-height: 1.5; }
+
+/* ===================== CAM application shell ===================== */
+.cam-root { --ribbon-h: 96px; --status-h: 26px; position: fixed; inset: 0; display: grid;
+  grid-template-rows: var(--ribbon-h) 1fr var(--status-h); grid-template-columns: 260px 1fr 320px;
+  grid-template-areas: "ribbon ribbon ribbon" "tree center params" "status status status";
+  background: var(--bg); color: var(--text); font-size: 13px; overflow: hidden; }
+.cam-ribbon { grid-area: ribbon; display: flex; flex-direction: column; border-bottom: 1px solid var(--border); background: var(--card); }
+.cam-ribbon-tabs { display: flex; gap: 2px; padding: 4px 8px 0; align-items: flex-end; }
+.cam-ribbon-tabs .brand { font-weight: 700; margin-right: 12px; padding-bottom: 6px; color: var(--accent); }
+.cam-ribbon-tabs button { background: none; border: 1px solid transparent; border-bottom: none; border-radius: 6px 6px 0 0; padding: 5px 12px; cursor: pointer; font: inherit; color: var(--muted); }
+.cam-ribbon-tabs button.active { background: var(--bg); border-color: var(--border); color: var(--text); font-weight: 600; }
+.cam-ribbon-tabs .spacer { flex: 1; }
+.cam-ribbon-body { flex: 1; display: flex; gap: 6px; padding: 6px 8px; background: var(--bg); overflow-x: auto; overflow-y: hidden; }
+.cam-group { display: flex; flex-direction: column; gap: 2px; padding: 0 8px; border-right: 1px solid var(--border); min-width: 0; }
+.cam-group:last-child { border-right: none; }
+.cam-group .items { display: flex; gap: 4px; flex-wrap: wrap; align-items: center; }
+.cam-group .title { font-size: 10px; color: var(--muted); text-transform: uppercase; letter-spacing: 0.05em; margin-top: auto; padding-top: 2px; }
+.cam-rbtn { display: inline-flex; flex-direction: column; align-items: center; justify-content: center; gap: 2px; min-width: 56px; height: 50px; padding: 2px 6px;
+  border: 1px solid transparent; border-radius: 6px; background: transparent; color: var(--text); cursor: pointer; font: inherit; font-size: 11px; line-height: 1.1; }
+.cam-rbtn .ico { font-size: 18px; line-height: 1; }
+.cam-rbtn:hover:not(:disabled) { border-color: var(--border); background: var(--card); }
+.cam-rbtn.active { background: var(--computed); border-color: var(--accent); color: var(--computed-text); }
+.cam-rbtn:disabled { opacity: 0.4; cursor: default; }
+.cam-rbtn.small { height: 24px; min-width: 0; flex-direction: row; }
+.cam-ribbon select, .cam-inline-select { padding: 4px 6px; border: 1px solid var(--border); border-radius: 6px; background: var(--card); color: var(--text); font: inherit; max-width: 240px; }
+
+.cam-tree { grid-area: tree; border-right: 1px solid var(--border); background: var(--card); overflow: auto; padding: 6px 0; }
+.cam-tree h3 { margin: 6px 10px 4px; font-size: 11px; color: var(--muted); text-transform: uppercase; letter-spacing: 0.05em; }
+.cam-node { display: flex; align-items: center; gap: 6px; padding: 3px 8px; cursor: pointer; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; user-select: none; }
+.cam-node:hover { background: var(--bg); }
+.cam-node.selected { background: var(--computed); color: var(--computed-text); }
+.cam-node .ico { width: 18px; text-align: center; flex: none; }
+.cam-node .lbl { overflow: hidden; text-overflow: ellipsis; flex: 1; }
+.cam-node .meta { color: var(--muted); font-size: 11px; }
+.cam-node input[type=checkbox] { margin: 0; }
+.cam-node.depth1 { padding-left: 24px; } .cam-node.depth2 { padding-left: 40px; } .cam-node.depth3 { padding-left: 56px; } .cam-node.depth4 { padding-left: 72px; }
+.cam-empty { color: var(--muted); padding: 8px 12px; font-size: 12px; }
+
+.cam-center { grid-area: center; display: flex; flex-direction: column; min-width: 0; min-height: 0; position: relative; }
+.cam-viewtabs { display: flex; gap: 2px; padding: 4px 8px 0; border-bottom: 1px solid var(--border); background: var(--card); }
+.cam-viewtabs button { background: none; border: none; border-bottom: 2px solid transparent; padding: 4px 10px; cursor: pointer; font: inherit; color: var(--muted); }
+.cam-viewtabs button.active { color: var(--text); border-bottom-color: var(--accent); font-weight: 600; }
+.cam-viewtabs .right { margin-left: auto; display: flex; gap: 6px; align-items: center; color: var(--muted); font-size: 12px; }
+.cam-canvas-wrap { flex: 1; position: relative; min-height: 0; overflow: hidden; background: #e9ecf0; }
+@media (prefers-color-scheme: dark) { .cam-canvas-wrap { background: #0b0e12; } }
+.cam-canvas-wrap canvas { display: block; width: 100%; height: 100%; touch-action: none; cursor: crosshair; }
+.cam-canvas-hint { position: absolute; left: 8px; bottom: 8px; background: color-mix(in srgb, var(--card) 85%, transparent); border: 1px solid var(--border); border-radius: 6px; padding: 3px 8px; font-size: 11px; color: var(--muted); pointer-events: none; }
+.cam-gcode { flex: 1; min-height: 0; display: flex; flex-direction: column; }
+.cam-gcode pre { flex: 1; margin: 0; padding: 10px 12px; overflow: auto; font-family: var(--mono); font-size: 12px; line-height: 1.4; background: var(--card); white-space: pre; }
+.cam-gcode .bar { display: flex; gap: 8px; align-items: center; padding: 6px 10px; border-bottom: 1px solid var(--border); font-size: 12px; color: var(--muted); }
+.cam-gcode .bar .grow { flex: 1; }
+
+.cam-params { grid-area: params; border-left: 1px solid var(--border); background: var(--card); overflow: auto; padding: 4px 0 20px; }
+.cam-section { border-bottom: 1px solid var(--border); padding: 6px 10px 10px; }
+.cam-section header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 4px; }
+.cam-section h3 { margin: 0; font-size: 12px; text-transform: uppercase; letter-spacing: 0.05em; color: var(--muted); }
+.cam-section-body { display: grid; grid-template-columns: 1fr 1fr; gap: 6px 8px; }
+.cam-section-body .full { grid-column: 1 / -1; }
+.cam-field { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.cam-field.full { grid-column: 1 / -1; }
+.cam-label { font-size: 11px; color: var(--muted); }
+.cam-input-wrap { display: flex; align-items: center; gap: 4px; }
+.cam-input-wrap input { min-width: 0; }
+.cam-unit { font-size: 11px; color: var(--muted); flex: none; }
+.cam-field input[type=text], .cam-field select { padding: 5px 8px; font-size: 13px; border: 1px solid var(--border); border-radius: 6px; background: var(--card); color: var(--text); font-family: var(--mono); width: 100%; }
+.cam-field select { font-family: inherit; }
+.cam-check { flex-direction: row; align-items: center; gap: 6px; }
+.cam-check .cam-label { font-size: 13px; color: var(--text); }
+.cam-params .warn { margin: 8px 10px; font-size: 12px; }
+
+.cam-status { grid-area: status; display: flex; align-items: center; gap: 16px; padding: 0 10px; border-top: 1px solid var(--border); background: var(--card); font-size: 12px; color: var(--muted); font-family: var(--mono); white-space: nowrap; overflow: hidden; }
+.cam-status .grow { flex: 1; }
+.cam-status .dirty { color: var(--warn-text); }
+
+.cam-modal-backdrop { position: fixed; inset: 0; background: rgba(0,0,0,0.45); display: flex; align-items: center; justify-content: center; z-index: 100; }
+.cam-modal { background: var(--card); border: 1px solid var(--border); border-radius: 12px; width: min(720px, 94vw); max-height: 90vh; display: flex; flex-direction: column; box-shadow: 0 20px 60px rgba(0,0,0,0.35); }
+.cam-modal.wide { width: min(1100px, 96vw); }
+.cam-modal-head { display: flex; align-items: center; justify-content: space-between; padding: 12px 16px; border-bottom: 1px solid var(--border); }
+.cam-modal-head h2 { margin: 0; font-size: 1.05rem; }
+.cam-modal-body { padding: 12px 16px; overflow: auto; flex: 1; }
+.cam-modal-foot { padding: 10px 16px; border-top: 1px solid var(--border); display: flex; gap: 8px; justify-content: flex-end; }
+.cam-options { display: grid; grid-template-columns: 240px 1fr; gap: 16px; min-height: 420px; }
+.cam-options .list { border-right: 1px solid var(--border); padding-right: 12px; display: flex; flex-direction: column; gap: 2px; }
+.cam-options .list button.item { text-align: left; background: none; border: 1px solid transparent; border-radius: 6px; padding: 6px 8px; cursor: pointer; font: inherit; color: var(--text); }
+.cam-options .list button.item.active { background: var(--computed); color: var(--computed-text); }
+.cam-options .list .meta { display: block; font-size: 11px; color: var(--muted); }
+.cam-options .editor { display: grid; grid-template-columns: 1fr 1fr; gap: 8px 12px; align-content: start; }
+.cam-options .editor .full { grid-column: 1 / -1; }
+.cam-tabs { display: flex; gap: 4px; margin-bottom: 12px; border-bottom: 1px solid var(--border); }
+.cam-tabs button { background: none; border: none; border-bottom: 2px solid transparent; padding: 6px 12px; cursor: pointer; font: inherit; color: var(--muted); }
+.cam-tabs button.active { color: var(--text); border-bottom-color: var(--accent); font-weight: 600; }
+.cam-assist { grid-column: 1 / -1; border: 1px dashed var(--border); border-radius: 8px; padding: 8px 10px; display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; align-items: end; }
+.cam-assist .out { font-family: var(--mono); font-size: 12px; }
+.cam-assist h4 { grid-column: 1 / -1; margin: 0; font-size: 12px; color: var(--muted); }
+.cam-toast { position: fixed; bottom: 40px; left: 50%; transform: translateX(-50%); background: var(--card); border: 1px solid var(--border); border-radius: 8px; padding: 8px 14px; box-shadow: 0 8px 30px rgba(0,0,0,0.3); z-index: 200; font-size: 13px; }
+.cam-toast.error { border-color: #d2413a; color: #d2413a; }
+textarea.cam-textarea { width: 100%; min-height: 120px; font-family: var(--mono); font-size: 12px; border: 1px solid var(--border); border-radius: 6px; background: var(--card); color: var(--text); padding: 6px 8px; }
+.cam-kbd { display: inline-block; border: 1px solid var(--border); border-bottom-width: 2px; border-radius: 4px; padding: 0 5px; font-family: var(--mono); font-size: 11px; background: var(--bg); }
+.cam-viewtabs { overflow: hidden; white-space: nowrap; }
+.cam-canvas-hint { max-width: calc(100% - 16px); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+@media (max-width: 1100px) { .cam-root { grid-template-columns: 200px 1fr 260px; } .cam-viewtabs .right { display: none; } }
+@media (max-width: 800px) { .cam-root { grid-template-columns: 160px 1fr 220px; } .cam-section-body { grid-template-columns: 1fr; } }
+.cam-x { flex: none; width: 18px; height: 18px; border: none; border-radius: 4px; background: transparent; color: var(--muted); cursor: pointer; font: 600 11px/1 system-ui; opacity: 0; padding: 0; }
+.cam-node:hover .cam-x, .cam-node.selected .cam-x { opacity: 1; }
+.cam-x:hover { background: #d2413a; color: #fff; }
+
+/* diagrams in the parameter panel */
+.cam-svg { width: 100%; height: auto; display: block; color: var(--text); background: color-mix(in srgb, var(--card) 85%, var(--bg)); border: 1px solid var(--border); border-radius: 8px; margin: 2px 0 4px; }
+.cam-svg * { vector-effect: non-scaling-stroke; }
+.cam-svg .stock { fill: color-mix(in srgb, var(--muted) 20%, transparent); stroke: var(--muted); stroke-width: 1; }
+.cam-svg .cut { fill: var(--card); stroke: none; }
+.cam-svg .pass { stroke: var(--muted); stroke-width: 1; stroke-dasharray: 2 2; }
+.cam-svg .tool { fill: color-mix(in srgb, var(--accent) 22%, transparent); stroke: var(--accent); stroke-width: 1.2; }
+.cam-svg .entry { fill: none; stroke: var(--accent); stroke-width: 1.2; }
+.cam-svg .dash { stroke: var(--muted); stroke-width: 1; stroke-dasharray: 3 3; }
+.cam-svg .dash.thin { stroke-dasharray: 1 2; }
+.cam-svg .dim { stroke: var(--text); stroke-width: 1; }
+.cam-svg .lbl { fill: var(--muted); }
+.cam-svg .contour { fill: none; stroke: var(--text); stroke-width: 1.4; }
+.cam-svg .material { fill: color-mix(in srgb, var(--muted) 14%, transparent); stroke: none; }
+.cam-svg .wall { fill: none; stroke: var(--accent); stroke-width: 1.6; }
+.cam-svg .ring { fill: none; stroke: var(--accent); stroke-width: 0.8; opacity: 0.7; }
+.cam-svg .tab { fill: color-mix(in srgb, var(--muted) 45%, transparent); stroke: var(--muted); stroke-width: 1; }
+.cam-svg .start { fill: #d2413a; stroke: none; }
+.cam-svg .origin { stroke: #d2413a; stroke-width: 1.5; fill: none; }
+.cam-svg .hl, .cam-svg .hl * { stroke: #ff7a00 !important; stroke-width: 2 !important; opacity: 1 !important; }
+.cam-svg text.hl { fill: #ff7a00 !important; font-weight: 700; stroke: none !important; }
+.cam-svg .tool.hl { fill: color-mix(in srgb, #ff7a00 30%, transparent); }
+.cam-op { cursor: grab; }
+.cam-op .grip { color: var(--muted); opacity: 0.5; font-size: 10px; letter-spacing: -2px; width: 10px; flex: none; }
+.cam-op.dragging { opacity: 0.4; }
+.cam-op.drop-before { box-shadow: inset 0 2px 0 var(--accent); }
+.cam-op.drop-after { box-shadow: inset 0 -2px 0 var(--accent); }
+.cam-block.drop-tool .cam-toolnode { background: var(--computed); }
+.cam-block + .cam-block { margin-top: 4px; border-top: 1px dashed var(--border); padding-top: 2px; }
+.cam-node .lbl { min-width: 40px; }
+.cam-node .meta { flex: none; }
+@media (max-width: 1100px) { .cam-op .meta { display: none; } .cam-toolnode .meta { display: none; } }
+.cam-section h3 .caret { display: inline-block; width: 12px; color: var(--muted); }
+.cam-section.closed { padding-bottom: 6px; }
+.cam-section h3:hover { color: var(--text); }
+.cam-layers button { background: none; border: 1px solid var(--border); border-radius: 999px; padding: 1px 8px; font: inherit; font-size: 11px; color: var(--muted); cursor: pointer; }
+.cam-layers button.active { background: var(--computed); color: var(--computed-text); border-color: var(--accent); }
+.cam-viewtabs .right.cam-layers { display: flex; }
+@media (max-width: 1100px) { .cam-viewtabs .right.cam-layers { display: flex; } .cam-layers button { padding: 1px 5px; } }
+.cam-legend { position: absolute; right: 8px; top: 8px; display: flex; flex-direction: column; gap: 3px; background: color-mix(in srgb, var(--card) 88%, transparent); border: 1px solid var(--border); border-radius: 6px; padding: 5px 8px; font-size: 11px; color: var(--text); pointer-events: none; }
+.cam-legend span { display: flex; align-items: center; gap: 6px; }
+.cam-legend i { display: inline-block; width: 12px; height: 8px; border-radius: 2px; opacity: 0.8; }
+@media (max-width: 1100px) { .cam-layers button span { display: none; } }

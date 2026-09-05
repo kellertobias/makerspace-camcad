@@ -2,13 +2,13 @@ import type { Metadata } from 'next';
 import './globals.css';
 
 export const metadata: Metadata = {
-  title: 'CNC Milling Calculator',
-  description: 'Spindle speed and feed rate calculator for CNC milling',
+  title: 'Makerspace CAM',
+  description: 'Browser-based 2.5D CAM: DXF/SVG layout, toolpaths and G-code for the Makerspace CNC machines and lasers',
 };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
-    <html lang="en">
+    <html lang="de">
       <body>{children}</body>
     </html>
   );
