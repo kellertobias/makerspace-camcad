@@ -2,6 +2,7 @@ import type { Vec2, Segment, Path } from '@/lib/geometry/types';
 import { svgArcCenter, ellipsePoint } from '@/lib/geometry/arcs';
 import { cubicPoints, quadPoints } from './curves';
 import { newId } from '@/lib/model/ids';
+import { ensureClosed } from '@/lib/geometry/path';
 
 /**
  * Parse an SVG path `d` attribute into paths in SVG user units (Y down). Arcs with rx == ry stay arcs.
@@ -19,7 +20,7 @@ export function parseSvgPath(d: string, tol = 0.01): Path[] {
   let pathStart: Vec2 | null = null;
   const num = () => { const t = tokens[i++]; return parseFloat(t); };
   const flush = (closed: boolean) => {
-    if (pathStart && segs.length) paths.push({ id: newId('pa'), start: pathStart, segs, closed });
+    if (pathStart && segs.length) paths.push(ensureClosed({ id: newId('pa'), start: pathStart, segs, closed }));
     segs = []; pathStart = null;
   };
   const begin = (p: Vec2) => { if (!pathStart) pathStart = p; };

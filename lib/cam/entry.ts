@@ -60,11 +60,19 @@ export function movesAlong(path: Path, from: number, to: number, z0: number, z1:
  * Estlcam-style zig-zag ramp: descend half the step forward along the path, then the other half back to the
  * start point. Requires the path to start at the entry point. Returns moves ending at (start, zEnd).
  */
+/** Horizontal length needed to descend `drop` at `angleDeg`; 90° (or more) means a straight plunge (0). */
+export function rampLength(drop: number, angleDeg: number): number {
+  if (angleDeg >= 89.99) return 0;
+  const angle = Math.max(1, angleDeg);
+  return drop / Math.tan((angle * Math.PI) / 180);
+}
+
 export function rampEntry(path: Path, zStart: number, zEnd: number, angleDeg: number, fPlunge: number): Move[] {
   const drop = zStart - zEnd;
   if (drop <= 1e-9) return [];
+  if (angleDeg >= 89.99) return [{ k: 'line', z: zEnd, f: fPlunge }]; // 90° = no ramp, plunge straight down
   const total = pathLength(path);
-  const angle = Math.max(1, Math.min(80, angleDeg));
+  const angle = Math.max(1, Math.min(89, angleDeg));
   let len = (drop / 2) / Math.tan((angle * Math.PI) / 180);
   if (len > total) len = total; // for short paths ramp along the whole length
   if (len < 1e-6) return [{ k: 'line', z: zEnd, f: fPlunge }];

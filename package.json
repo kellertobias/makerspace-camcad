@@ -1,5 +1,5 @@
 {
-  "name": "cnc-milling-calc",
+  "name": "makerspace-camcad",
   "version": "0.1.0",
   "private": true,
   "scripts": {
@@ -17,8 +17,10 @@
     "idb": "^8.0.3",
     "immer": "^11.1.18",
     "next": "^15.3.0",
+    "opentype.js": "^2.0.0",
     "react": "^19.0.0",
     "react-dom": "^19.0.0",
+    "three": "^0.185.1",
     "zundo": "^2.3.0",
     "zustand": "^5.0.15"
   },

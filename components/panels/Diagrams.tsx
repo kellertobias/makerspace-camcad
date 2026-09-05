@@ -107,7 +107,7 @@ export function SideDiagram({ side, lang }: { side: Side; lang: 'de' | 'en' }) {
 }
 
 /* ------------------------------------------------------------------ pocket */
-export function PocketDiagram({ side, strategy, stepOverPct, widthTools = 1, lang }: { side: 'inside' | 'on' | 'outside'; strategy: 'offset' | 'raster'; stepOverPct: number; widthTools?: number; lang: 'de' | 'en' }) {
+export function PocketDiagram({ side, strategy, stepOverPct, widthTools = 1, lang }: { side: 'inside' | 'on' | 'outside'; strategy: 'offset' | 'raster' | 'zigzag'; stepOverPct: number; widthTools?: number; lang: 'de' | 'en' }) {
   const hl = useHl();
   const de = lang === 'de';
   const so = Math.max(3, Math.min(14, stepOverPct / 8));
@@ -124,6 +124,11 @@ export function PocketDiagram({ side, strategy, stepOverPct, widthTools = 1, lan
   }
   const raster: ReactNode[] = [];
   if (strategy === 'raster' && side !== 'outside') for (let yy = y + wallOff + so; yy < y + h - wallOff; yy += so) raster.push(<line key={yy} x1={x + wallOff + 2} y1={yy} x2={x + w - wallOff - 2} y2={yy} className={`ring ${cls(hl, 'stepOver', 'strategy', 'rasterAngle')}`} />);
+  if (strategy === 'zigzag' && side !== 'outside') {
+    const pts: string[] = []; let left = true;
+    for (let yy = y + wallOff + so; yy < y + h - wallOff; yy += so) { const xa = x + wallOff + 2, xb = x + w - wallOff - 2; pts.push(left ? `${xa},${yy} ${xb},${yy}` : `${xb},${yy} ${xa},${yy}`); left = !left; }
+    raster.push(<polyline key="zz" points={pts.join(' ')} className={`ring ${cls(hl, 'stepOver', 'strategy', 'rasterAngle')}`} />);
+  }
   return (
     <Svg vb="0 0 240 90">
       <rect x={x} y={y} width={w} height={h} className="contour" />
@@ -263,3 +268,57 @@ export function DrillDiagram({ mode, peck, depth, lang }: { mode: 'plunge' | 'pe
 }
 
 export type { Operation };
+
+/* ------------------------------------------------------------------ tool (tool editor) */
+export function ToolDiagram({ kind, d, z, tipAngle, fluteLength, stepDown, stepOverPct, rampAngle, lang }: {
+  kind: string; d: number; z?: number; tipAngle?: number; fluteLength?: number; stepDown: number; stepOverPct: number; rampAngle?: number; lang: 'de' | 'en';
+}) {
+  const hl = useHl();
+  const de = lang === 'de';
+  // side view (left): shank + cutting part, scaled so the diameter fits; stock with step-down and ramp below
+  const cx = 70, top = 8, shankH = 26;
+  const scale = Math.min(3, 56 / Math.max(d, 4));
+  const w = Math.max(6, d * scale);
+  const fl = Math.max(12, Math.min(44, (fluteLength ?? Math.max(d, 8)) * scale));
+  const tipY = top + shankH + fl;
+  const isCone = kind === 'vbit' || kind === 'drill';
+  const half = ((tipAngle ?? 90) / 2) * (Math.PI / 180);
+  const coneH = isCone ? Math.min(40, (w / 2) / Math.tan(Math.max(0.1, half))) : 0;
+  const isBall = kind === 'ballnose';
+  const stockTop = tipY + coneH + 8;
+  const sd = Math.max(2, Math.min(16, stepDown * scale));
+  const flutes = Math.min(8, Math.max(1, z ?? 2));
+  // top view (right): two overlapping tool circles one step-over apart
+  const tvx = 235, r = Math.min(30, Math.max(8, (d * scale) / 2)), tvy = r + 16;
+  const so = (stepOverPct / 100) * 2 * r;
+  return (
+    <Svg vb="0 0 300 150">
+      <rect x={cx - Math.max(3, w * 0.35)} y={top} width={Math.max(6, w * 0.7)} height={shankH} className="tool" />
+      {kind === 'laser' ? <path d={`M${cx - 6},${top + shankH} L${cx + 6},${top + shankH} L${cx},${stockTop} Z`} className={`entry ${cls(hl, 'diameter')}`} /> : isCone
+        ? <path d={`M${cx - w / 2},${top + shankH} L${cx + w / 2},${top + shankH} L${cx + w / 2},${tipY} L${cx},${tipY + coneH} L${cx - w / 2},${tipY} Z`} className={`tool ${cls(hl, 'diameter', 'fluteLength')}`} />
+        : isBall
+          ? <path d={`M${cx - w / 2},${top + shankH} L${cx + w / 2},${top + shankH} L${cx + w / 2},${tipY - w / 2} A${w / 2},${w / 2} 0 0 1 ${cx - w / 2},${tipY - w / 2} Z`} className={`tool ${cls(hl, 'diameter', 'fluteLength')}`} />
+          : <rect x={cx - w / 2} y={top + shankH} width={w} height={fl} className={`tool ${cls(hl, 'diameter', 'fluteLength')}`} />}
+      {!isCone && !isBall && kind !== 'laser' && Array.from({ length: flutes }).map((_, i) => <line key={i} x1={cx - w / 2 + ((i + 0.5) * w) / flutes} y1={top + shankH + 2} x2={cx - w / 2 + ((i + 0.5) * w) / flutes} y2={tipY - 2} className={`pass ${cls(hl, 'flutes')}`} />)}
+      {/* cutting length (right of the tool) */}
+      {!isCone && kind !== 'laser' && <><Dim x={cx + w / 2 + 6} y0={top + shankH} y1={tipY} k="fluteLength" hl={hl} /><Label x={cx + w / 2 + 10} y={(top + shankH + tipY) / 2 + 3} hl={hl} k="fluteLength">{de ? 'Schneidenlänge' : 'cutting length'}{fluteLength ? ` ${fmt(fluteLength)}` : ''}</Label></>}
+      {isCone && <><path d={`M${cx - 10},${tipY + coneH - 10 / Math.tan(half)} L${cx},${tipY + coneH} L${cx + 10},${tipY + coneH - 10 / Math.tan(half)}`} className={`entry ${cls(hl, 'tipAngle')}`} /><Label x={cx + w / 2 + 10} y={tipY + coneH / 2 + 3} hl={hl} k="tipAngle">{de ? 'Spitzenwinkel' : 'tip angle'} {fmt(tipAngle ?? 90)}°</Label></>}
+      {/* stock with step-down */}
+      <rect x={10} y={stockTop} width={150} height={16} className="stock" />
+      <rect x={cx - w / 2} y={stockTop} width={w} height={sd} className={`cut ${cls(hl, 'stepDown')}`} />
+      <Dim x={cx - w / 2 - 6} y0={stockTop} y1={stockTop + sd} k="stepDown" hl={hl} />
+      <Label x={cx + w / 2 + 6} y={stockTop + 12} hl={hl} k="stepDown">{de ? 'Zustellung' : 'step-down'} {fmt(stepDown)}</Label>
+      {/* diameter (below the stock) */}
+      <line x1={cx - w / 2} y1={stockTop + 22} x2={cx + w / 2} y2={stockTop + 22} className={`dim ${cls(hl, 'diameter')}`} />
+      <Label x={10} y={stockTop + 34} hl={hl} k="diameter">Ø {fmt(d)} mm{z && kind !== 'laser' ? ` · ${z} ${de ? 'Schn.' : 'fl.'}` : ''}</Label>
+      {/* ramp (right of the stock, own row) */}
+      {rampAngle !== undefined && kind !== 'laser' && kind !== 'drill' && <><line x1={cx + w / 2 + 6} y1={stockTop + 22} x2={cx + w / 2 + 40} y2={stockTop + 22 + Math.min(12, 34 * Math.tan((rampAngle * Math.PI) / 180))} className={`entry ${cls(hl, 'rampAngle')}`} /><Label x={cx + w / 2 + 6} y={stockTop + 46} hl={hl} k="rampAngle">{de ? 'Rampe' : 'ramp'} {fmt(rampAngle)}°{rampAngle >= 89.99 ? (de ? ' (senkrecht)' : ' (plunge)') : ''}</Label></>}
+      {/* top view */}
+      <circle cx={tvx - so / 2} cy={tvy} r={r} className="tool" />
+      <circle cx={tvx + so / 2} cy={tvy} r={r} className={`tool ${cls(hl, 'stepOverPct')}`} />
+      <line x1={tvx - so / 2} y1={tvy + r + 6} x2={tvx + so / 2} y2={tvy + r + 6} className={`dim ${cls(hl, 'stepOverPct')}`} />
+      <Label x={tvx} y={tvy + r + 18} anchor="middle" hl={hl} k="stepOverPct">{de ? 'seitl. Zustellung' : 'step-over'} {fmt(stepOverPct)} %</Label>
+      <Label x={tvx} y={tvy - r - 5} anchor="middle" hl={hl}>{de ? 'Draufsicht' : 'top view'}</Label>
+    </Svg>
+  );
+}

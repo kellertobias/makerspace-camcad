@@ -5,11 +5,14 @@ import { TreePanel } from './TreePanel';
 import { StatusBar } from './StatusBar';
 import { GcodeView } from './GcodeView';
 import { Canvas2D } from '@/components/canvas2d/Canvas2D';
+import dynamic from 'next/dynamic';
+const Preview3D = dynamic(() => import('@/components/canvas3d/Preview3D'), { ssr: false, loading: () => <div className="cam-empty" style={{ padding: 24 }}>Loading 3D…</div> });
 import { ParamPanel } from '@/components/panels/ParamPanel';
 import { OptionsModal } from '@/components/modals/OptionsModal';
 import { ArrayModal } from '@/components/modals/ArrayModal';
 import { ShortcutsModal } from '@/components/modals/ShortcutsModal';
-import { useUi } from '@/lib/store/ui';
+import { TextModal } from '@/components/modals/TextModal';
+import { useUi, loadViewPrefs } from '@/lib/store/ui';
 import { useLibrary } from '@/lib/store/library';
 import { useProject } from '@/lib/store/project';
 import { t } from '@/lib/i18n';
@@ -29,6 +32,7 @@ export function AppShell() {
   // boot: language, library, autosaved project
   useEffect(() => {
     try { const l = window.localStorage.getItem('cnc-milling-calc:lang'); if (l === 'de' || l === 'en') useUi.getState().setLang(l); } catch {}
+    loadViewPrefs();
     useLibrary.getState().load();
     const libState = useLibrary.getState();
     let restored = false;
@@ -94,7 +98,7 @@ export function AppShell() {
           )}
         </div>
         {ui.view === '2d' && <Canvas2D />}
-        {ui.view === '3d' && <div className="cam-empty" style={{ padding: 24 }}>{ui.lang === 'de' ? '3D-Vorschau folgt in einer späteren Phase.' : '3D preview arrives in a later phase.'}</div>}
+        {ui.view === '3d' && <Preview3D />}
         {ui.view === 'gcode' && <GcodeView />}
       </div>
       <ParamPanel />
@@ -102,6 +106,7 @@ export function AppShell() {
       {ui.modal === 'options' && <OptionsModal />}
       {ui.modal === 'array' && <ArrayModal />}
       {ui.modal === 'shortcuts' && <ShortcutsModal />}
+      {ui.modal === 'text' && <TextModal key={ui.textEditId ?? 'new'} />}
       {ui.toast && <div className={`cam-toast ${ui.toast.kind}`}>{ui.toast.text}</div>}
     </div>
   );

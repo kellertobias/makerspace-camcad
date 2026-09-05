@@ -121,6 +121,12 @@ function PlacementParams({ ids }: { ids: string[] }) {
         <Hl k="arrayDx"><NumberField label={s.arrayDx} unit="mm" value={pl.array?.dx ?? 100} onChange={(v) => updatePlacement(pl.id, { array: { nx: pl.array?.nx ?? 1, ny: pl.array?.ny ?? 1, dx: v, dy: pl.array?.dy ?? 100 } })} /></Hl>
         <Hl k="arrayDy"><NumberField label={s.arrayDy} unit="mm" value={pl.array?.dy ?? 100} onChange={(v) => updatePlacement(pl.id, { array: { nx: pl.array?.nx ?? 1, ny: pl.array?.ny ?? 1, dx: pl.array?.dx ?? 100, dy: v } })} /></Hl>
       </Section>
+      {shape?.kind === 'text' && !many && (
+        <Section title={s.textTitle} id="text">
+          <div className="full" style={{ fontSize: 12, color: 'var(--muted)', whiteSpace: 'pre-wrap' }}>{shape.text?.text}</div>
+          <div className="full"><button type="button" className="btn small" onClick={() => useUi.getState().openTextModal(pl.id)}>{s.editText}</button></div>
+        </Section>
+      )}
       {shape && !many && (
         <Section title={s.paths} id="shape-paths" defaultOpen={false}>
           <div className="full" style={{ fontSize: 12, color: 'var(--muted)' }}>
@@ -184,7 +190,7 @@ export function OperationParams({ op }: { op: Operation }) {
         {(op.type === 'contour' || op.type === 'engrave') && <Hl k="side"><SelectField label={s.side} value={op.side} options={sideOpts(['outside', 'inside', 'on', 'left', 'right'])} onChange={(v) => patch({ side: v } as Partial<Operation>)} /></Hl>}
         {op.type === 'cutout' && <Hl k="side"><SelectField label={s.side} value={op.side} options={sideOpts(['outside', 'inside'])} onChange={(v) => patch({ side: v } as Partial<Operation>)} /></Hl>}
         <Hl k="entry"><SelectField label={s.entry} value={op.entry.kind} options={(['plunge', 'ramp', 'helix'] as const).map((k) => ({ value: k, label: s.entries[k] }))} onChange={(v) => patch({ entry: v === 'ramp' ? { kind: 'ramp', angle: op.entry.kind === 'ramp' ? op.entry.angle : tool?.cut.rampAngle ?? 10 } : { kind: v } })} /></Hl>
-        {op.entry.kind === 'ramp' && <Hl k="rampAngle"><NumberField label={s.rampAngle} unit="°" value={op.entry.angle} min={1} max={80} onChange={(v) => patch({ entry: { kind: 'ramp', angle: v } })} /></Hl>}
+        {op.entry.kind === 'ramp' && <Hl k="rampAngle"><NumberField label={s.rampAngle} unit="°" value={op.entry.angle} min={1} max={90} onChange={(v) => patch({ entry: { kind: 'ramp', angle: v } })} title={lang === 'de' ? '90° = kein Rampen, senkrecht eintauchen' : '90° = no ramp, straight plunge'} /></Hl>}
         <Hl k="zOffset"><NumberField label={s.zOffset} unit="mm" value={op.zOffset} min={0} onChange={(v) => patch({ zOffset: v })} title={s.zOffsetHint} /></Hl>
         <CheckField label={s.enabled} value={op.enabled} onChange={(v) => patch({ enabled: v })} />
       </Section>
@@ -230,8 +236,8 @@ export function OperationParams({ op }: { op: Operation }) {
             <Hl k="outsideWidth"><SelectField label={lang === 'de' ? 'Einheit' : 'Unit'} value={op.outsideWidthUnit ?? 'mm'} options={(['tool', 'mm'] as const).map((u) => ({ value: u, label: s.widthUnits[u] }))} onChange={(u) => { const d = tool?.d ?? 6; const cur = op.outsideWidth ?? 1; const conv = u === 'tool' ? Math.round((cur / d) * 100) / 100 : Math.round(cur * d * 100) / 100; patch({ outsideWidthUnit: u, outsideWidth: (op.outsideWidthUnit ?? 'mm') === u ? cur : conv } as Partial<Operation>); }} /></Hl>
             <div className="full hint" style={{ margin: 0 }}>{s.outsideWidthHint}{tool ? ` (${lang === 'de' ? 'aktuell' : 'currently'} ${Math.round(((op.outsideWidthUnit === 'tool' ? (op.outsideWidth ?? 1) * tool.d : (op.outsideWidth ?? tool.d))) * 100) / 100} mm)` : ''}</div>
           </>)}
-          <Hl k="strategy"><SelectField label={s.strategy} value={op.strategy} options={(['offset', 'raster'] as const).map((k) => ({ value: k, label: s.strategies[k] }))} onChange={(v) => patch({ strategy: v } as Partial<Operation>)} /></Hl>
-          {op.strategy === 'raster' && <Hl k="rasterAngle"><NumberField label={s.rasterAngle} unit="°" value={op.rasterAngle} onChange={(v) => patch({ rasterAngle: v } as Partial<Operation>)} /></Hl>}
+          <Hl k="strategy"><SelectField label={s.strategy} value={op.strategy} options={(['offset', 'raster', 'zigzag'] as const).map((k) => ({ value: k, label: s.strategies[k] }))} onChange={(v) => patch({ strategy: v } as Partial<Operation>)} /></Hl>
+          {(op.strategy === 'raster' || op.strategy === 'zigzag') && <Hl k="rasterAngle"><NumberField label={s.rasterAngle} unit="°" value={op.rasterAngle} onChange={(v) => patch({ rasterAngle: v } as Partial<Operation>)} /></Hl>}
           <Hl k="stepOver"><NumberField label={s.stepOver} unit="%" value={op.stepOverPct ?? tool?.cut.stepOverPct} min={5} max={100} onChange={(v) => patch({ stepOverPct: v } as Partial<Operation>)} /></Hl>
           <div className="full hint" style={{ margin: 0 }}>{s.pocketHint}</div>
         </Section>
@@ -241,6 +247,15 @@ export function OperationParams({ op }: { op: Operation }) {
           <div className="full"><DrillDiagram mode={op.mode} peck={op.peck ?? 2} depth={op.depth} lang={lang} /></div>
           <Hl k="peck"><SelectField label={s.opType} value={op.mode} options={[{ value: 'plunge', label: s.entries.plunge }, { value: 'peck', label: lang === 'de' ? 'Spanbrechen (Peck)' : 'Peck' }]} onChange={(v) => patch({ mode: v } as Partial<Operation>)} /></Hl>
           {op.mode === 'peck' && <Hl k="peck"><NumberField label={lang === 'de' ? 'Zustellung je Peck' : 'Peck depth'} unit="mm" value={op.peck ?? 2} min={0.1} onChange={(v) => patch({ peck: v } as Partial<Operation>)} /></Hl>}
+        </Section>
+      )}
+      {op.type === 'thread' && (
+        <Section title={s.thread} id="op-thread" defaultOpen>
+          <SelectField label={s.threadKind} value={op.internal ? 'internal' : 'external'} options={[{ value: 'internal', label: s.threadKinds.internal }, { value: 'external', label: s.threadKinds.external }]} onChange={(v) => patch({ internal: v === 'internal' } as Partial<Operation>)} />
+          <NumberField label={s.threadMajor} unit="mm" value={op.majorD} min={0.5} onChange={(v) => patch({ majorD: v } as Partial<Operation>)} />
+          <NumberField label={s.threadPitch} unit="mm" value={op.pitch} min={0.05} onChange={(v) => patch({ pitch: v } as Partial<Operation>)} />
+          <NumberField label={s.threadPasses} value={op.passes} digits={0} min={1} max={10} onChange={(v) => patch({ passes: Math.round(v) } as Partial<Operation>)} />
+          <div className="full hint" style={{ margin: 0 }}>{s.threadHint}</div>
         </Section>
       )}
       <Section title={`${s.targets} (${op.targets.length})`} id="op-targets" defaultOpen={false}>

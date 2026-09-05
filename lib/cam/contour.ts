@@ -5,7 +5,7 @@ import { dist, sub, cross } from '@/lib/geometry/vec';
 import type { Operation, Side, Tool, TabsSpec } from '@/lib/model/project';
 import type { Move } from './types';
 import { depthPasses } from './depth';
-import { rampEntry, helixEntry, movesAlong } from './entry';
+import { rampEntry, helixEntry, movesAlong, rampLength } from './entry';
 import { insertTabs, tabPositions, tabPoints } from './tabs';
 import { applyOvercut } from './overcut';
 
@@ -123,17 +123,31 @@ export function millPath(toolPath: Path, op: Operation, ctx: ContourCtx, tabs?: 
   moves.push({ k: 'rapid', z: zStart + ctx.clearZ });
   let z = zStart;
   moves.push({ k: 'line', z, f: ctx.vfPlunge, s: ctx.s });
+  const tabTop = tabs && centres.length ? ctx.zTop - ctx.thickness + tabs.height : null;
+  const rampAngle = entry.kind === 'ramp' ? entry.angle : 10;
+  // Closed outline with a ramp: ramp forward along the contour (no backing up) and run the full loop from the
+  // ramp's end, which clears the ramped section at full depth; the next pass continues from where this one ended.
+  const forwardRamp = toolPath.closed && entry.kind === 'ramp' && len > 0.01;
+  let pos = 0; // arc-length position of the tool along the closed path
   for (const passZ of passes) {
-    // entry from z to passZ
-    if (entry.kind === 'helix' && circ) moves.push(...helixEntry(circ.c, start, circ.cw, z, passZ, stepDown, ctx.vfPlunge));
-    else if (entry.kind === 'ramp' && len > 0.01) moves.push(...rampEntry(toolPath, z, passZ, entry.angle, ctx.vfPlunge));
-    else moves.push({ k: 'line', z: passZ, f: ctx.vfPlunge });
-    // the pass itself
-    const tabTop = tabs && centres.length ? ctx.zTop - ctx.thickness + tabs.height : null;
-    if (tabs && tabTop !== null && passZ < tabTop - 1e-9) {
-      moves.push(...insertTabs(toolPath, tabs, centres, passZ, tabTop, ctx.vf, ctx.vfPlunge, entry.kind === 'ramp' ? entry.angle : 10));
+    if (forwardRamp) {
+      const L = Math.min(len, rampLength(z - passZ, rampAngle));
+      const fromPath = rotateStart(toolPath, pos / len);
+      if (L > 1e-6) moves.push(...movesAlong(fromPath, 0, L, z, passZ, ctx.vfPlunge));
+      else moves.push({ k: 'line', z: passZ, f: ctx.vfPlunge });
+      pos = (pos + L) % len;
+      const loopPath = L > 1e-6 ? rotateStart(toolPath, pos / len) : fromPath;
+      if (tabs && tabTop !== null && passZ < tabTop - 1e-9) {
+        const shifted = centres.map((c) => (((c - pos) % len) + len) % len).sort((a, b) => a - b);
+        moves.push(...insertTabs(loopPath, tabs, shifted, passZ, tabTop, ctx.vf, ctx.vfPlunge, rampAngle));
+      } else moves.push(...movesAlong(loopPath, 0, len, passZ, passZ, ctx.vf));
     } else {
-      moves.push(...movesAlong(toolPath, 0, len, passZ, passZ, ctx.vf));
+      // entry from z to passZ
+      if (entry.kind === 'helix' && circ) moves.push(...helixEntry(circ.c, start, circ.cw, z, passZ, stepDown, ctx.vfPlunge));
+      else if (entry.kind === 'ramp' && len > 0.01) moves.push(...rampEntry(toolPath, z, passZ, entry.angle, ctx.vfPlunge));
+      else moves.push({ k: 'line', z: passZ, f: ctx.vfPlunge });
+      if (tabs && tabTop !== null && passZ < tabTop - 1e-9) moves.push(...insertTabs(toolPath, tabs, centres, passZ, tabTop, ctx.vf, ctx.vfPlunge, rampAngle));
+      else moves.push(...movesAlong(toolPath, 0, len, passZ, passZ, ctx.vf));
     }
     z = passZ;
     first = false;

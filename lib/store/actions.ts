@@ -112,6 +112,29 @@ export function addSelectionToOperation(opId: string, role: 'cut' | 'exclude' = 
   ui.select({ operations: [opId] });
 }
 
+/** Plane the whole sheet: a rectangle the size of the stock with a pocket on its contour (the tool sweeps past the edge). */
+export function addSurfacingOperation() {
+  const ps = useProject.getState();
+  const lib = useLibrary.getState();
+  const ui = useUi.getState();
+  const tool = lib.tools.find((t) => t.id === lib.activeToolId) ?? lib.tools.find((t) => t.kind === 'facemill') ?? lib.tools[0];
+  if (!tool) { ui.notify(ui.lang === 'de' ? 'Kein Werkzeug vorhanden.' : 'No tool available.', 'error'); return; }
+  ps.ensureTool(tool);
+  const { width, height } = ps.project.stock;
+  const rect: Path = { id: newId('pa'), start: { x: 0, y: 0 }, closed: true, layer: ui.lang === 'de' ? 'Platte' : 'Sheet', segs: [{ k: 'L', to: { x: width, y: 0 } }, { k: 'L', to: { x: width, y: height } }, { k: 'L', to: { x: 0, y: height } }] };
+  const shape: Shape = { id: newId('s'), name: ui.lang === 'de' ? 'Platte' : 'Sheet', kind: 'outline', paths: [rect] };
+  const placement: Placement = { id: newId('p'), shapeId: shape.id, name: shape.name, transform: translation(0, 0), locked: true };
+  ps.addShape(shape, placement);
+  const machine = lib.machines.find((m) => m.id === ps.project.machineId);
+  const op = newOperation('pocket', tool.id, tool, 1, Object.keys(ps.project.operations).length + 1, machine?.climbAllowed === true);
+  if (op.type === 'pocket') { op.side = 'on'; op.strategy = 'zigzag'; op.entry = { kind: 'plunge' }; }
+  op.name = ui.lang === 'de' ? 'Planen' : 'Surfacing';
+  op.targets = [{ placementId: placement.id, pathId: rect.id, pick: 'contour' }];
+  ps.addOperation(op);
+  ui.select({ operations: [op.id] });
+  ui.setDirty(true);
+}
+
 export function transformSelection(kind: 'rot90' | 'rot-90' | 'mirrorX' | 'mirrorY') {
   const ids = selectedPlacementIds();
   if (!ids.length) return;

@@ -167,7 +167,15 @@ export function circlePath(c: Vec2, r: number, cw = false, startAngle = Math.PI,
 }
 
 export function polylinePath(pts: Vec2[], closed: boolean, layer?: string): Path {
-  return { id: newId('pa'), start: pts[0], segs: pts.slice(1).map((to) => ({ k: 'L', to }) as Segment), closed, layer };
+  return ensureClosed({ id: newId('pa'), start: pts[0], segs: pts.slice(1).map((to) => ({ k: 'L', to }) as Segment), closed, layer });
+}
+
+/** Closed paths always carry an explicit closing segment (the CAM walker relies on it). */
+export function ensureClosed(p: Path): Path {
+  if (!p.closed || p.segs.length === 0) return p;
+  const end = pathEnd(p);
+  if (dist(end, p.start) <= 1e-9) return p;
+  return { ...p, segs: [...p.segs, { k: 'L', to: p.start }] };
 }
 
 /** Sample points along the path at approximately `step` spacing (used for simulation and hit tests). */

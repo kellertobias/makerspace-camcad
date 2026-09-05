@@ -1,5 +1,5 @@
 'use client';
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 
 interface Props {
   label: string;
@@ -20,15 +20,29 @@ export function NumberField({ label, value, onChange, unit, min, max, digits = 3
   const fmt = (v: number | undefined) => (v === undefined || !Number.isFinite(v) ? '' : String(Math.round(v * 10 ** digits) / 10 ** digits));
   const [text, setText] = useState(fmt(value));
   useEffect(() => { setText(fmt(value)); }, [value]); // eslint-disable-line react-hooks/exhaustive-deps
-  const commit = () => {
-    const v = Number(text.trim().replace(',', '.'));
-    if (text.trim() === '' || !Number.isFinite(v)) { setText(fmt(value)); return; }
+  // latest state for the unmount commit (the field may disappear before its blur event when the selection changes)
+  const latest = useRef({ text, value, onChange, min, max });
+  latest.current = { text, value, onChange, min, max };
+  const parse = (txt: string, cur: number | undefined, lo?: number, hi?: number) => {
+    const v = Number(txt.trim().replace(',', '.'));
+    if (txt.trim() === '' || !Number.isFinite(v)) return null;
     let c = v;
-    if (min !== undefined) c = Math.max(min, c);
-    if (max !== undefined) c = Math.min(max, c);
-    if (c !== value) onChange(c);
+    if (lo !== undefined) c = Math.max(lo, c);
+    if (hi !== undefined) c = Math.min(hi, c);
+    return c !== cur ? c : null;
+  };
+  const commit = () => {
+    const c = parse(text, value, min, max);
+    if (c === null) { setText(fmt(value)); return; }
+    onChange(c);
     setText(fmt(c));
   };
+  useEffect(() => () => {
+    // unmounting with an uncommitted edit: save it
+    const l = latest.current;
+    const c = parse(l.text, l.value, l.min, l.max);
+    if (c !== null) l.onChange(c);
+  }, []);
   return (
     <label className="cam-field" title={title}>
       <span className="cam-label">{label}</span>

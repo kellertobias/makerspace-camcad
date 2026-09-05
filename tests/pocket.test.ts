@@ -79,3 +79,23 @@ describe('exclusion zones', () => {
     for (const p of r.toolPaths) for (const q of flatten(p, 0.1)) expect(distToSquare(q)).toBeGreaterThan(7 - 0.05);
   });
 });
+
+describe('zig-zag strategy', () => {
+  it('chains the raster lines into one continuous path', () => {
+    const o = op('inside'); o.strategy = 'zigzag'; o.rasterAngle = 0;
+    const r = pocketMoves([rect()], o, ctx);
+    // wall + one chained fill path
+    expect(r.toolPaths.length).toBe(2);
+    const zz = r.toolPaths[1];
+    expect(zz.closed).toBe(false);
+    expect(zz.segs.length).toBeGreaterThan(10);
+    // alternating direction: consecutive horizontal runs go opposite ways
+    const xs = [zz.start.x, ...zz.segs.map((s) => s.to.x)];
+    let dirChanges = 0;
+    for (let i = 2; i < xs.length; i += 2) if (Math.sign(xs[i] - xs[i - 1]) !== Math.sign(xs[i - 2 + 1] - xs[i - 2]) ) dirChanges++;
+    expect(dirChanges).toBeGreaterThan(3);
+    // the raster strategy on the same pocket produces separate lines
+    const o2 = op('inside'); o2.strategy = 'raster';
+    expect(pocketMoves([rect()], o2, ctx).toolPaths.length).toBeGreaterThan(5);
+  });
+});

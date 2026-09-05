@@ -49,6 +49,7 @@ function defaultTools(): Tool[] {
     newTool({ id: 't-default-6', name: 'Spiralnutfräser Ø6 mm', slot: 1, d: 6, z: 2, cut: { stepDown: 3, stepOverPct: 40, n: 24000, vf: 2500, vfPlunge: 300, rampAngle: 10 } }),
     newTool({ id: 't-default-3', name: 'Spiralnutfräser Ø3 mm', slot: 2, d: 3, z: 2, cut: { stepDown: 1.5, stepOverPct: 40, n: 24000, vf: 1200, vfPlunge: 300, rampAngle: 10 } }),
     newTool({ id: 't-default-v60', kind: 'vbit', name: 'V-Fräser 60°', slot: 3, d: 6, z: 1, tipAngle: 60, cut: { stepDown: 1, stepOverPct: 30, n: 24000, vf: 1200, vfPlunge: 300, rampAngle: 10 } }),
+    newTool({ id: 't-default-plan', kind: 'facemill', name: 'Planfräser Ø22 mm', slot: 4, d: 22, z: 2, fluteLength: 6, cut: { stepDown: 1, stepOverPct: 70, n: 12000, vf: 2000, vfPlunge: 300, rampAngle: 5 } }),
   ];
 }
 

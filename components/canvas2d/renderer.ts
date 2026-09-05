@@ -75,6 +75,9 @@ export function draw(ctx: CanvasRenderingContext2D, v: View, o: DrawOpts) {
 
   // milled areas (Fräsbild): the tool-width band of every operation, coloured by operation type
   const opsSorted = Object.values(project.operations).filter((op) => op.enabled).sort((a, b) => a.order - b.order);
+  // with an operation selected, every other operation is muted to a quarter of its opacity
+  const anyOpSelected = o.selection.operations.length > 0;
+  const dim = (op: { id: string }) => anyOpSelected && !o.selection.operations.includes(op.id);
   if (o.showMilling && o.plan) {
     ctx.lineCap = 'round'; ctx.lineJoin = 'round';
     for (const op of opsSorted) {
@@ -82,10 +85,12 @@ export function draw(ctx: CanvasRenderingContext2D, v: View, o: DrawOpts) {
       const tool = project.tools[op.toolId];
       if (!paths?.length || !tool) continue;
       const selected = o.selection.operations.includes(op.id);
+      ctx.globalAlpha = dim(op) ? 0.25 : 1;
       ctx.strokeStyle = (OP_TYPE_COLORS[op.type] ?? '#888') + (selected ? 'aa' : '77');
       ctx.lineWidth = Math.max(1.5, tool.d * v.scale);
       ctx.beginPath(); for (const p of paths) tracePath(ctx, v, p); ctx.stroke();
     }
+    ctx.globalAlpha = 1;
   }
   // tool centre lines
   if (o.showToolpaths && o.plan) {
@@ -97,6 +102,7 @@ export function draw(ctx: CanvasRenderingContext2D, v: View, o: DrawOpts) {
       if (!paths?.length) continue;
       const color = TOOL_COLORS[(toolIndex.get(op.toolId) ?? 0) % TOOL_COLORS.length];
       const selected = o.selection.operations.includes(op.id);
+      ctx.globalAlpha = dim(op) ? 0.25 : 1;
       ctx.lineWidth = selected ? 2 : 1;
       ctx.strokeStyle = o.showMilling ? (o.dark ? '#ffffffcc' : '#000000aa') : color;
       ctx.beginPath(); for (const p of paths) tracePath(ctx, v, p); ctx.stroke();
@@ -116,6 +122,7 @@ export function draw(ctx: CanvasRenderingContext2D, v: View, o: DrawOpts) {
         }
       }
     }
+    ctx.globalAlpha = 1;
   }
   // rapids (dotted)
   if (o.showRapids && o.plan) {

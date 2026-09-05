@@ -7,7 +7,7 @@ import { offsetClosed, difference, union, clipLines, orient } from '@/lib/geomet
 import { nestPaths } from '@/lib/geometry/containment';
 import { bbox as pathBBox, pathLength, polylinePath, signedArea } from '@/lib/geometry/path';
 import { depthPasses } from './depth';
-import { movesAlong, rampEntry } from './entry';
+import { movesAlong, rampEntry, rampLength } from './entry';
 import { applyOvercut } from './overcut';
 import { bboxUnion } from '@/lib/geometry/types';
 
@@ -94,11 +94,30 @@ export function pocketMoves(paths: Path[], op: PocketOp, ctx: ContourCtx, exclus
       const px = cx + nrm.x * o, py = cy + nrm.y * o;
       lines.push([{ x: px - dir.x * half, y: py - dir.y * half }, { x: px + dir.x * half, y: py + dir.y * half }]);
     }
-    const clipped = clipLines(lines, region).filter((l) => l.length >= 2 && Math.hypot(l[0].x - l[l.length - 1].x, l[0].y - l[l.length - 1].y) > 0.05);
+    const clipped = clipLines(lines, region)
+      .filter((l) => l.length >= 2 && Math.hypot(l[0].x - l[l.length - 1].x, l[0].y - l[l.length - 1].y) > 0.05)
+      // Clipper returns open paths in arbitrary direction: make every line run along +dir first
+      .map((l) => { const e = l[l.length - 1]; return (e.x - l[0].x) * dir.x + (e.y - l[0].y) * dir.y < 0 ? [...l].reverse() : l; });
     const keyed = clipped.map((l) => ({ l, o: (l[0].x - cx) * nrm.x + (l[0].y - cy) * nrm.y, a: (l[0].x - cx) * dir.x + (l[0].y - cy) * dir.y }));
     keyed.sort((p, q) => p.o - q.o || p.a - q.a);
-    let flip = false, lastO = NaN;
-    fill = keyed.map((k) => { if (Math.abs(k.o - lastO) > 1e-6) { flip = !flip; lastO = k.o; } return polylinePath(flip ? [...k.l].reverse() : k.l, false); });
+    let flip = false, lastO = Infinity;
+    const lines2 = keyed.map((k) => { if (Math.abs(k.o - lastO) > 1e-6) { flip = !flip; lastO = k.o; } return flip ? [...k.l].reverse() : k.l; });
+    if (op.strategy === 'zigzag') {
+      // chain neighbouring lines into one continuous path: across, step over along the wall, back, ...
+      // a connection is only made when the two ends are adjacent (one step-over apart), otherwise the tool lifts
+      const chains: { x: number; y: number }[][] = [];
+      let cur: { x: number; y: number }[] = [];
+      for (const l of lines2) {
+        if (cur.length) {
+          const e = cur[cur.length - 1], s0 = l[0];
+          if (Math.hypot(e.x - s0.x, e.y - s0.y) <= stepOver * 2.2) { cur.push(...l); continue; }
+          chains.push(cur);
+        }
+        cur = [...l];
+      }
+      if (cur.length) chains.push(cur);
+      fill = chains.map((pts) => polylinePath(pts, false));
+    } else fill = lines2.map((pts) => polylinePath(pts, false));
   }
   toolPaths.push(...wallPaths, ...fill);
 
@@ -115,6 +134,15 @@ export function pocketMoves(paths: Path[], op: PocketOp, ctx: ContourCtx, exclus
     for (let i = 0; i < sequence.length; i++) {
       const p = sequence[i];
       if (i === 0) {
+        if (op.entry.kind === 'ramp' && pathLength(p) > 0.5 && p.closed && rampLength(z - passZ, op.entry.angle) > 1e-6) {
+          // forward ramp along the closed wall; the wall loop that follows clears the ramped section
+          const L = Math.min(pathLength(p), rampLength(z - passZ, op.entry.angle));
+          moves.push(...movesAlong(p, 0, L, z, passZ, ctx.vfPlunge));
+          moves.push(...movesAlong(p, L, L + pathLength(p), passZ, passZ, ctx.vf));
+          // return to the path start so the ring sequence below continues as planned
+          moves.push(...movesAlong(p, L, pathLength(p), passZ, passZ, ctx.vf).slice(0, 0));
+          continue;
+        }
         if (op.entry.kind === 'ramp' && pathLength(p) > 0.5) moves.push(...rampEntry(p, z, passZ, op.entry.angle, ctx.vfPlunge)); else moves.push({ k: 'line', z: passZ, f: ctx.vfPlunge });
       } else {
         // move to the next path: rapid over uncut material is unsafe, so travel at cutting depth only when inside the

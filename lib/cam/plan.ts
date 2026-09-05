@@ -9,6 +9,7 @@ import { bbox as pathBBox } from '@/lib/geometry/path';
 import { bboxCenter } from '@/lib/geometry/types';
 import { apply } from '@/lib/geometry/transform';
 import { drillMoves } from './drill';
+import { threadMoves } from './thread';
 import { pocketMoves, type Exclusion } from './pocket';
 import { apply as applyMat } from '@/lib/geometry/transform';
 
@@ -117,6 +118,11 @@ export function planProject(project: Project, machine: Machine, version = 'dev')
           case 'drill': {
             const pts = geo.points.length ? geo.points : geo.paths.map((p) => bboxCenter(pathBBox(p)));
             for (const p of pts) { opTp.moves.push(...drillMoves(p, op, ctx)); if (opTp.moves.length) { firstCut = false; ctx.s = undefined; } }
+            break;
+          }
+          case 'thread': {
+            const pts = geo.points.length ? geo.points : geo.paths.map((p) => bboxCenter(pathBBox(p)));
+            for (const p of pts) { const r = threadMoves(p, op, ctx); opTp.moves.push(...r.moves); opTp.warnings.push(...r.warnings); if (r.moves.length) firstCut = false; }
             break;
           }
           default:

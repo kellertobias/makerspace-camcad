@@ -13,6 +13,7 @@ import { newId } from '@/lib/model/ids';
 import { parsePp, serializePp, type PostProfile } from '@/lib/post';
 import { openTextFiles, saveText } from '@/lib/persist/fs';
 import { solve, fmt } from '@/lib/solver';
+import { HlProvider, Hl, ToolDiagram } from '@/components/panels/Diagrams';
 
 export function OptionsModal() {
   const lang = useUi((u) => u.lang);
@@ -65,19 +66,22 @@ function ToolEditor({ tool, onChange, onDelete, onDuplicate }: { tool: Tool; onC
   const machine = lib.machines.find((m) => m.id === lib.activeMachineId);
   const sol = useMemo(() => solve({ n: '', vc: tool.cut.vc?.toString() ?? '', d: String(tool.d), z: String(tool.z ?? ''), fz: tool.cut.fz?.toString() ?? '', vf: '', nMax: String(machine?.nMax ?? ''), nMin: String(machine?.nMin ?? ''), vfMax: String(machine?.feedMax.xy ?? '') }), [tool, machine]);
   return (
+    <HlProvider>
     <div className="editor">
       <div className="full"><TextField label={s.name} value={tool.name} onChange={(v) => set({ name: v })} /></div>
+      <div className="full"><ToolDiagram kind={tool.kind} d={tool.d} z={tool.z} tipAngle={tool.tipAngle} fluteLength={tool.fluteLength} stepDown={tool.cut.stepDown} stepOverPct={tool.cut.stepOverPct} rampAngle={tool.cut.rampAngle} lang={lang} /></div>
       <SelectField label={s.toolKind} value={tool.kind} options={(Object.keys(s.toolKinds) as ToolKind[]).map((k) => ({ value: k, label: s.toolKinds[k] }))} onChange={(v) => set({ kind: v })} />
       <NumberField label={s.slot} value={tool.slot} digits={0} min={0} onChange={(v) => set({ slot: Math.round(v) })} />
-      <NumberField label={s.diameter} unit="mm" value={tool.d} min={0.01} onChange={(v) => set({ d: v })} />
-      {!isLaser && <NumberField label={s.flutes} value={tool.z} digits={0} min={1} onChange={(v) => set({ z: Math.round(v) })} />}
-      {(tool.kind === 'vbit' || tool.kind === 'drill') && <NumberField label={s.tipAngle} unit="°" value={tool.tipAngle} min={1} max={180} onChange={(v) => set({ tipAngle: v })} />}
-      {!isLaser && <NumberField label={s.spindleSpeed} unit="1/min" value={tool.cut.n} onChange={(v) => cut({ n: v })} />}
-      <NumberField label={s.feed} unit="mm/min" value={tool.cut.vf} onChange={(v) => cut({ vf: v })} />
-      {!isLaser && <NumberField label={s.plungeFeed} unit="mm/min" value={tool.cut.vfPlunge} onChange={(v) => cut({ vfPlunge: v })} />}
-      {!isLaser && <NumberField label={s.stepDown} unit="mm" value={tool.cut.stepDown} min={0.05} onChange={(v) => cut({ stepDown: v })} />}
-      {!isLaser && <NumberField label={s.stepOverPct} unit="%" value={tool.cut.stepOverPct} min={5} max={100} onChange={(v) => cut({ stepOverPct: v })} />}
-      {!isLaser && <NumberField label={s.rampAngle} unit="°" value={tool.cut.rampAngle} min={1} max={80} onChange={(v) => cut({ rampAngle: v })} />}
+      <Hl k="diameter"><NumberField label={s.diameter} unit="mm" value={tool.d} min={0.01} onChange={(v) => set({ d: v })} /></Hl>
+      {!isLaser && <Hl k="flutes"><NumberField label={s.flutes} value={tool.z} digits={0} min={1} onChange={(v) => set({ z: Math.round(v) })} /></Hl>}
+      {!isLaser && tool.kind !== 'vbit' && tool.kind !== 'drill' && <Hl k="fluteLength"><NumberField label={s.fluteLength} unit="mm" value={tool.fluteLength} min={0.1} onChange={(v) => set({ fluteLength: v })} placeholder="–" /></Hl>}
+      {(tool.kind === 'vbit' || tool.kind === 'drill') && <Hl k="tipAngle"><NumberField label={s.tipAngle} unit="°" value={tool.tipAngle} min={1} max={180} onChange={(v) => set({ tipAngle: v })} /></Hl>}
+      {!isLaser && <Hl k="spindleSpeed"><NumberField label={s.spindleSpeed} unit="1/min" value={tool.cut.n} onChange={(v) => cut({ n: v })} /></Hl>}
+      <Hl k="feed"><NumberField label={s.feed} unit="mm/min" value={tool.cut.vf} onChange={(v) => cut({ vf: v })} /></Hl>
+      {!isLaser && <Hl k="plungeFeed"><NumberField label={s.plungeFeed} unit="mm/min" value={tool.cut.vfPlunge} onChange={(v) => cut({ vfPlunge: v })} /></Hl>}
+      {!isLaser && <Hl k="stepDown"><NumberField label={s.stepDown} unit="mm" value={tool.cut.stepDown} min={0.05} onChange={(v) => cut({ stepDown: v })} /></Hl>}
+      {!isLaser && <Hl k="stepOverPct"><NumberField label={s.stepOverPct} unit="%" value={tool.cut.stepOverPct} min={5} max={100} onChange={(v) => cut({ stepOverPct: v })} /></Hl>}
+      {!isLaser && <Hl k="rampAngle"><NumberField label={s.rampAngle} unit="°" value={tool.cut.rampAngle} min={1} max={90} onChange={(v) => cut({ rampAngle: v })} title={lang === 'de' ? '90° = kein Rampen, senkrecht eintauchen' : '90° = no ramp, straight plunge'} /></Hl>}
       {isLaser && <NumberField label={lang === 'de' ? 'Leistung' : 'Power'} unit="%" value={tool.cut.power} min={0} max={100} onChange={(v) => cut({ power: v })} />}
       {isLaser && <NumberField label={lang === 'de' ? 'Durchgänge' : 'Passes'} value={tool.cut.passes} digits={0} min={1} onChange={(v) => cut({ passes: Math.round(v) })} />}
       {!isLaser && (
@@ -96,6 +100,7 @@ function ToolEditor({ tool, onChange, onDelete, onDuplicate }: { tool: Tool; onC
         <a href="./calc/" target="_blank" rel="noreferrer" className="btn" style={{ textDecoration: 'none' }}>{s.calculator} ↗</a>
       </div>
     </div>
+    </HlProvider>
   );
 }
 

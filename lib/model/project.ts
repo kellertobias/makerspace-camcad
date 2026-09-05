@@ -25,7 +25,7 @@ export interface Path {
 
 export type ShapeKind = 'outline' | 'text' | 'point';
 
-export interface TextSpec { text: string; font: string; size: number; lineHeight?: number; align?: 'left' | 'center' | 'right' }
+export interface TextSpec { text: string; font: string; size: number; lineHeight?: number; letterSpacing?: number; align?: 'left' | 'center' | 'right' }
 
 export interface Shape {
   id: Id;
@@ -82,7 +82,7 @@ export interface Stock {
 // ---------------------------------------------------------------------------
 // Tools & machines
 // ---------------------------------------------------------------------------
-export type ToolKind = 'endmill' | 'ballnose' | 'vbit' | 'drill' | 'saw' | 'laser';
+export type ToolKind = 'endmill' | 'facemill' | 'ballnose' | 'vbit' | 'drill' | 'saw' | 'laser';
 
 export interface CuttingData {
   /** Spindle speed (1/min) */
@@ -202,7 +202,7 @@ export type OperationVariant =
   | { type: 'cutout'; side: 'outside' | 'inside'; tabs?: TabsSpec; overcut: Overcut }
   /** Pocket: wall pass on the given side first, then the interior with the step-over.
    *  For side 'outside', `outsideWidth` is how much material is removed around the contour, in mm or in tool widths (`outsideWidthUnit`). */
-  | { type: 'pocket'; side: 'inside' | 'on' | 'outside'; outsideWidth?: number; outsideWidthUnit?: 'mm' | 'tool'; strategy: 'offset' | 'raster'; rasterAngle: number; stepOverPct?: number; islands: 'auto' | 'none'; overcut: Overcut }
+  | { type: 'pocket'; side: 'inside' | 'on' | 'outside'; outsideWidth?: number; outsideWidthUnit?: 'mm' | 'tool'; strategy: 'offset' | 'raster' | 'zigzag'; rasterAngle: number; stepOverPct?: number; islands: 'auto' | 'none'; overcut: Overcut }
   | { type: 'engrave'; side: Side }
   | { type: 'drill'; mode: 'plunge' | 'peck' | 'helix'; peck?: number; dwell?: number }
   | { type: 'thread'; pitch: number; majorD: number; internal: boolean; passes: number }

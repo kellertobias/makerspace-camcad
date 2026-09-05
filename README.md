@@ -1,4 +1,4 @@
-# Makerspace CAM (cnc-milling-calc)
+# Makerspace CAM/CAD (makerspace-camcad)
 
 Browser-based 2.5D CAM for the Makerspace machines: import DXF/SVG outlines, lay them out on a sheet, assign
 operations (contour, cutout with bridges, pocket, engraving, drilling), preview toolpaths and generate G-code through
@@ -14,6 +14,13 @@ npm run build      # static export to out/
 npm start          # serve out/
 npm test           # vitest (geometry, CAM, post-processor)
 ```
+
+## Deployment
+
+Every push to `main` builds the static export and publishes it to GitHub Pages via
+`.github/workflows/deploy.yml`. A project Pages site is served from a subpath, so the workflow sets
+`NEXT_PUBLIC_BASE_PATH=/<repo>` before building; leaving that variable unset builds for the root path,
+which is what local development uses.
 
 ## Layout
 
@@ -39,9 +46,14 @@ generic GRBL mill, generic GRBL laser, IMA BIMA placeholder (the IMA is programm
 
 ## Status
 
-Done: shell (ribbon, tree, 2D canvas, parameter panel, G-code view), DXF/SVG import, placement (move/rotate/mirror/array/group),
-contour outside/inside/on/left/right, cutout with bridges, pocket (offset + raster), engraving, drilling, dog-bone/T-bone,
-start point/angle, zero-point modes, undo/redo, project save/open (`.cncproj`), autosave, tool/machine/profile library.
+Done: shell (ribbon, tree with tool blocks in execution order and drag-and-drop, 2D canvas with Fräsbild / tool path /
+rapid layers, collapsible parameter panel with live diagrams, G-code view), DXF/SVG import with contour-level selection,
+placement (move/rotate/mirror/array/group), contour outside/inside/on/left/right, cutout with automatic or manually placed
+bridges, pocket with wall side + safe zone + exclusion zones, engraving, drilling, dog-bone/T-bone, start point/angle/depth,
+per-machine climb permission, zero-point modes, undo/redo, project save/open (`.cncproj`), autosave, tool/machine/profile
+library, 3D preview: heightmap material simulation in a Web Worker (`workers/cam.worker.ts`), procedural MDF/OSB/plywood/
+wood/aluminium/acrylic looks (plywood layers on cut walls), 0.1 mm grid over the machined region, blue through-cut floors,
+red over-cuts, cut areas coloured by operation, animated tool with material following it, playback; text objects from
+bundled OFL fonts (`public/fonts/`) or uploaded TTF/OTF, created together with tool and operation (stroke-width check).
 
-Pending: 3D preview and material simulation, text engraving (fonts), laser operations end-to-end + SVG export,
-thread milling, saw blades, IMA FMC exporter, IndexedDB project cache, worker offloading.
+Pending: laser operations end-to-end + SVG export, thread milling, saw blades, IMA FMC exporter, IndexedDB project cache.

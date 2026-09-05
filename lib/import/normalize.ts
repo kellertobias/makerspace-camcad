@@ -1,6 +1,6 @@
 import type { Path, Vec2 } from '@/lib/geometry/types';
 import { TOL } from '@/lib/geometry/types';
-import { pathEnd, reverse, signedArea } from '@/lib/geometry/path';
+import { pathEnd, reverse, signedArea, ensureClosed } from '@/lib/geometry/path';
 import { dist } from '@/lib/geometry/vec';
 import { newId } from '@/lib/model/ids';
 
@@ -78,7 +78,7 @@ export function cleanPaths(paths: Path[], tol = 1e-6): Path[] {
     const segs = p.segs.filter((s) => { const keep = !(s.k === 'L' && dist(prev, s.to) <= tol); prev = s.to; return keep; });
     if (segs.length === 0 && p.segs.length > 0) continue; // collapsed
     if (p.closed && segs.length < 2) continue;
-    out.push({ ...p, segs });
+    out.push(ensureClosed({ ...p, segs }));
   }
   return out;
 }

@@ -13,7 +13,8 @@ export function TreePanel() {
   const s = t(lang);
   const project = useProject((p) => p.project);
   const sel = useUi((u) => u.selection);
-  const select = useUi((u) => u.select);
+  const selectRaw = useUi((u) => u.select);
+  const select: typeof selectRaw = (sel, additive) => { const a = document.activeElement as HTMLElement | null; if (a && a.tagName === 'INPUT' && (a as HTMLInputElement).type === 'text') a.blur(); selectRaw(sel, additive); };
   const clearSelection = useUi((u) => u.clearSelection);
   const updateOperation = useProject((p) => p.updateOperation);
   const removeOperations = useProject((p) => p.removeOperations);
@@ -69,17 +70,23 @@ export function TreePanel() {
 
   const opLine = (op: Operation) => {
     const n = new Set(op.targets.map((tg) => `${tg.placementId}:${tg.pathId ?? ''}`)).size;
+    // Z range: start depth (operation + group) down to start + depth, as machine Z below the surface
+    const groupDepth = Object.values(project.groups).find((g) => op.targets.some((tg) => project.placements[tg.placementId]?.groupId === g.id))?.zOffset ?? 0;
+    const zStart = -(op.zOffset + groupDepth), zEnd = zStart - op.depth;
+    const fmtZ = (v: number) => (Math.abs(v) < 1e-9 ? '0' : String(Math.round(v * 100) / 100));
+    const zLabel = `${fmtZ(zStart)}→${fmtZ(zEnd)}`;
     const dragging = drag?.id === op.id;
     const over = drag?.over === op.id ? drag.where : null;
     return (
       <div key={op.id}
         className={`cam-node depth1 cam-op${sel.operations.includes(op.id) ? ' selected' : ''}${dragging ? ' dragging' : ''}${over === 'before' ? ' drop-before' : over === 'after' ? ' drop-after' : ''}`}
         draggable onDragStart={(e) => onDragStart(e, op.id)} onDragOver={(e) => onDragOverOp(e, op)} onDrop={(e) => onDropOp(e, op)} onDragEnd={() => setDrag(null)}
-        onClick={(e) => select({ operations: [op.id] }, e.shiftKey || e.metaKey || e.ctrlKey)} title={`${op.order}. ${s.opNames[op.type]} · ${op.depth} mm`}>
+        onClick={(e) => select({ operations: [op.id] }, e.shiftKey || e.metaKey || e.ctrlKey)} title={`${op.order}. ${s.opNames[op.type]} · Z ${zLabel} mm · ${n} ${s.paths}`}>
         <span className="grip" aria-hidden="true">⋮⋮</span>
         <input type="checkbox" checked={op.enabled} onClick={(e) => e.stopPropagation()} onChange={(e) => updateOperation(op.id, { enabled: e.target.checked })} title={s.enabled} />
         <span className="ico" title={s.opNames[op.type]}>{OP_ICONS[op.type]}</span>
         <span className="lbl">{op.name || s.opNames[op.type]}</span>
+        <span className="meta z" title={`Z ${zLabel} mm`}><span className="zp">Z </span>{zLabel}</span>
         <span className="meta">{n} {s.paths}</span>
         <button type="button" className="cam-x" title={s.delete} onClick={(e) => { e.stopPropagation(); deleteOp(op); }}>✕</button>
       </div>

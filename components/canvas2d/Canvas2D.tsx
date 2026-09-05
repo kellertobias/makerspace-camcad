@@ -97,6 +97,9 @@ export function Canvas2D() {
   };
 
   const onPointerDown = (e: React.PointerEvent) => {
+    // commit any field being edited in the side panel before the selection (and thus the panel) changes
+    const active = document.activeElement as HTMLElement | null;
+    if (active && active !== e.currentTarget && typeof active.blur === 'function') active.blur();
     const v = viewRef.current;
     const sp = screenPt(e);
     const wp = toWorld(v, sp);

@@ -3,7 +3,7 @@ import { useLibrary } from '@/lib/store/library';
 import { useProject } from '@/lib/store/project';
 import { useUi, type RibbonTab } from '@/lib/store/ui';
 import { t } from '@/lib/i18n';
-import { addOperationForSelection, deleteSelection, duplicateSelection, exportGcode, groupSelection, importFiles, newProjectAction, openProject, saveProject, selectedPlacementIds, transformSelection } from '@/lib/store/actions';
+import { addOperationForSelection, addSurfacingOperation, deleteSelection, duplicateSelection, exportGcode, groupSelection, importFiles, newProjectAction, openProject, saveProject, selectedPlacementIds, transformSelection } from '@/lib/store/actions';
 import { placementBBox } from '@/lib/cam/instances';
 import { bboxUnion, bboxValid } from '@/lib/geometry/types';
 import { compose, translation } from '@/lib/geometry/transform';
@@ -75,6 +75,7 @@ export function Ribbon() {
             <RBtn ico="⧉" label={s.duplicate} onClick={duplicateSelection} disabled={!hasSel} />
             <RBtn ico="▦" label={s.array} onClick={() => ui.openModal('array')} disabled={!hasSel} />
             <RBtn ico="⛶" label={s.group} onClick={groupSelection} disabled={selectedPlacementIds().length < 2} />
+            <RBtn ico="T" label={s.addText} onClick={() => ui.openTextModal(null)} />
             <RBtn ico="🗑" label={s.deleteSel} onClick={deleteSelection} disabled={!hasSel && !ui.selection.operations.length && !ui.selection.groups.length} />
           </Group>
           <Group title={s.targets}>
@@ -104,6 +105,7 @@ export function Ribbon() {
               <RBtn ico="✎" label={s.engrave} onClick={() => addOperationForSelection('engrave', 'on')} disabled={!hasSel} />
               <RBtn ico="⌖" label={s.drill} onClick={() => addOperationForSelection('drill')} disabled={!hasSel} />
               <RBtn ico="⌀" label={s.thread} onClick={() => addOperationForSelection('thread')} disabled={!hasSel} />
+              <RBtn ico="▬" label={s.surface} onClick={addSurfacingOperation} title={s.surfaceHint} />
             </Group>
           </>)}
           {isLaser && (
