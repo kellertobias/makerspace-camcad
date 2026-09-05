@@ -297,6 +297,13 @@ textarea.cam-textarea { width: 100%; min-height: 120px; font-family: var(--mono)
 .cam-3d-toggle { display: inline-flex; align-items: center; gap: 4px; }
 .cam-3d-canvas { flex: 1; min-height: 0; position: relative; background: radial-gradient(ellipse at 50% 30%, #2b3340 0%, #14181e 100%); }
 .cam-3d-canvas canvas { display: block; width: 100% !important; height: 100% !important; }
+.cam-3d-loading { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; background: color-mix(in srgb, #14181e 55%, transparent); backdrop-filter: blur(2px); z-index: 2; }
+.cam-3d-loading .card { display: flex; flex-direction: column; align-items: center; gap: 10px; min-width: 260px; padding: 18px 22px; border-radius: 10px; background: color-mix(in srgb, var(--card) 92%, transparent); border: 1px solid var(--border); box-shadow: 0 8px 30px rgba(0,0,0,0.35); color: var(--text); font-size: 13px; }
+.cam-3d-loading .spinner { width: 28px; height: 28px; border-radius: 50%; border: 3px solid var(--border); border-top-color: var(--accent); animation: cam-spin 0.9s linear infinite; }
+.cam-3d-loading .stage { color: var(--muted); font-size: 12px; }
+.cam-3d-loading .bar { width: 100%; height: 6px; border-radius: 3px; background: var(--border); overflow: hidden; }
+.cam-3d-loading .bar i { display: block; height: 100%; background: var(--accent); transition: width 0.15s linear; }
+@keyframes cam-spin { to { transform: rotate(360deg); } }
 .cam-op .meta.z { font-family: var(--mono); font-size: 11px; color: var(--text); opacity: 0.85; }
 @media (max-width: 1100px) { .cam-op .meta.z { display: inline; } }
 @media (max-width: 1100px) { .cam-op .meta.z .zp { display: none; } .cam-op .grip { display: none; } .cam-node.depth1.cam-op { padding-left: 14px; } }

@@ -6,7 +6,7 @@ import { StatusBar } from './StatusBar';
 import { GcodeView } from './GcodeView';
 import { Canvas2D } from '@/components/canvas2d/Canvas2D';
 import dynamic from 'next/dynamic';
-const Preview3D = dynamic(() => import('@/components/canvas3d/Preview3D'), { ssr: false, loading: () => <div className="cam-empty" style={{ padding: 24 }}>Loading 3D…</div> });
+const Preview3D = dynamic(() => import('@/components/canvas3d/Preview3D'), { ssr: false, loading: () => <div className="cam-3d"><div className="cam-3d-canvas"><div className="cam-3d-loading"><div className="card"><div className="spinner" /><div>{t(useUi.getState().lang).loading3d}</div></div></div></div></div> });
 import { ParamPanel } from '@/components/panels/ParamPanel';
 import { OptionsModal } from '@/components/modals/OptionsModal';
 import { ArrayModal } from '@/components/modals/ArrayModal';

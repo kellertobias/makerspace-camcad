@@ -60,6 +60,8 @@ export default function Preview3D() {
   const [speed, setSpeed] = useState(() => loadPref('3d.speed', 10));
   useEffect(() => { savePref('3d.quality', quality); savePref('3d.tool', showTool); savePref('3d.paths', showPaths); savePref('3d.speed', speed); }, [quality, showTool, showPaths, speed]);
   const [status, setStatus] = useState<'idle' | 'simulating' | 'done'>('idle');
+  /** initial preparation of a new simulation: grid build, then the full material simulation */
+  const [loading, setLoading] = useState<{ stage: 'grid' | 'sim'; progress: number } | null>(null);
   const progressRef = useRef(1);
   const framedRef = useRef('');
   const heightsRef = useRef<Float32Array | null>(null);
@@ -136,6 +138,12 @@ export default function Preview3D() {
   useEffect(() => {
     const sc = sceneRef.current;
     if (!sc || !sim) return;
+    // show the loading screen first; the grid build blocks the main thread, so give the browser a frame to paint
+    setLoading({ stage: 'grid', progress: 0 });
+    let cancelled = false;
+    let w: Worker | null = null;
+    const timer = setTimeout(() => { if (!cancelled) w = build(); }, 40);
+    const build = (): Worker => {
     const { width, height, thickness, cell } = sim.cfg;
     const ox = sim.cfg.ox ?? 0, oy = sim.cfg.oy ?? 0;
     const sheetW = sim.sheet.width, sheetH = sim.sheet.height;
@@ -279,6 +287,8 @@ export default function Preview3D() {
     const w = new Worker(new URL('../../workers/cam.worker.ts', import.meta.url));
     workerRef.current = w;
     setStatus('simulating');
+    setLoading({ stage: 'sim', progress: 0 });
+    let initial = true;
     // Apply a changed rectangle: copy into the CPU arrays, then upload just that region of the two textures.
     const applyRect = (i0: number, i1: number, j0: number, j1: number, h: Float32Array, opMap: Uint8Array) => {
       if (j1 < j0 || i1 < i0) return;
@@ -297,13 +307,16 @@ export default function Preview3D() {
       if (msg.type !== 'result') return;
       if (msg.j1 >= msg.j0) applyRect(msg.i0, msg.i1, msg.j0, msg.j1, msg.heights, msg.opMap);
       setStatus(msg.done ? 'done' : 'simulating');
+      if (initial) { if (msg.done) { initial = false; setLoading(null); } else setLoading({ stage: 'sim', progress: msg.progress }); }
     };
     const init: WorkerRequest = { type: 'init', cfg: sim.cfg };
     w.postMessage(init);
     // honour current progress
     const cur = positionAt(sim.cfg.moves, sim.timeline, progressRef.current * sim.total);
     if (progressRef.current < 1) w.postMessage({ type: 'simulate', index: cur.index, frac: cur.t } as WorkerRequest);
-    return () => { w.terminate(); if (workerRef.current === w) workerRef.current = null; };
+    return w;
+    };
+    return () => { cancelled = true; clearTimeout(timer); if (w) { w.terminate(); if (workerRef.current === w) workerRef.current = null; } };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [sim, project.stock.material]);
 
@@ -360,7 +373,18 @@ export default function Preview3D() {
         <span className="grow" />
         <span style={{ color: status === 'simulating' ? 'var(--accent)' : 'var(--muted)' }}>{status === 'simulating' ? (de ? 'Simuliere…' : 'Simulating…') : sim ? `${sim.cfg.moves.length} ${de ? 'Bewegungen' : 'moves'} · ${s.materials[project.stock.material]} · ${sim.cfg.cell} mm${sim.coarsened ? (de ? ' (Bereich zu groß, vergröbert)' : ' (region too large, coarsened)') : ''}` : ''}</span>
       </div>
-      <div className="cam-3d-canvas" ref={wrapRef} />
+      <div className="cam-3d-canvas" ref={wrapRef}>
+        {loading && (
+          <div className="cam-3d-loading" role="status" aria-live="polite">
+            <div className="card">
+              <div className="spinner" />
+              <div>{s.preparing3d}</div>
+              <div className="stage">{loading.stage === 'grid' ? s.building3dGrid : s.simulating3d(Math.round(loading.progress * 100))}</div>
+              <div className="bar"><i style={{ width: `${loading.stage === 'grid' ? 3 : 5 + loading.progress * 95}%` }} /></div>
+            </div>
+          </div>
+        )}
+      </div>
       {!sim?.cfg.moves.length && <div className="cam-canvas-hint" style={{ bottom: 12 }}>{s.gcodeEmpty}</div>}
     </div>
   );
