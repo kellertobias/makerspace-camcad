@@ -27,21 +27,25 @@ export const DEFAULT_SPINDLES: SpindlePreset[] = [
     vfMax: '2500',
     info: '3 axes · 2.2 kW water-cooled spindle · rapid XY 3000 mm/min, Z 1000 mm/min · milling feed XY 2500 mm/min, Z 1000 mm/min · chip extraction',
   },
-  {
-    id: 'default-makerspace-ima-bima-cnc',
-    name: 'Makerspace IMA BIMA CNC',
-    nMax: '18000',
-    nMin: '1500',
-    vfMax: '55000',
-    info: '4 axes · 7.5 kW water-cooled main spindle · travel X 3160 / Y 1380 / Z 440 mm · working area X 2800 / Y 800 (1000 restricted) mm · max workpiece thickness 60 mm, clamp height 80 mm · max tool Ø 150 mm, 5 kg · feed X/Y 55000, Z 25000 mm/min · accel 4500 (X/Y) / 2500 (Z) mm/s² · accuracy ±0.25 mm (usually ±0.1; horizontal ±0.8 since crash 2026-07-05) · vacuum clamping, 130 × 130 mm pods · ~5100 kg · 19 kVA',
-  },
 ];
 
 const SEEDED_KEY = 'cnc-milling-calc:spindles-seeded';
+const IMA_REMOVED_KEY = 'cnc-milling-calc:spindles-ima-removed';
+
+/** The IMA BIMA is no longer supported: drop it once from machine lists seeded by earlier versions. */
+function dropIma(list: SpindlePreset[]): SpindlePreset[] {
+  try {
+    if (window.localStorage.getItem(IMA_REMOVED_KEY) === '1') return list;
+    const next = list.filter((s) => s.id !== 'default-makerspace-ima-bima-cnc');
+    if (next.length !== list.length) write(SPINDLES_KEY, next);
+    window.localStorage.setItem(IMA_REMOVED_KEY, '1');
+    return next;
+  } catch { return list; }
+}
 
 /** Add the default machines the first time the app runs. Deleting them afterwards is respected. */
 export function seedSpindles(): SpindlePreset[] {
-  const list = read<SpindlePreset>(SPINDLES_KEY);
+  const list = dropIma(read<SpindlePreset>(SPINDLES_KEY));
   let seeded = false;
   try { seeded = window.localStorage.getItem(SEEDED_KEY) === '1'; } catch {}
   if (seeded) return list;
@@ -73,7 +77,7 @@ function write<T>(key: string, list: T[]) {
 
 export const loadTools = () => read<ToolPreset>(TOOLS_KEY);
 export const saveTools = (list: ToolPreset[]) => write(TOOLS_KEY, list);
-export const loadSpindles = () => read<SpindlePreset>(SPINDLES_KEY);
+export const loadSpindles = () => dropIma(read<SpindlePreset>(SPINDLES_KEY));
 export const saveSpindles = (list: SpindlePreset[]) => write(SPINDLES_KEY, list);
 
 export function newId(): string {

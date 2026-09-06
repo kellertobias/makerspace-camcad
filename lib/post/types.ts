@@ -16,8 +16,8 @@ export interface PostProfile {
   id: string;
   name: string;
   builtIn?: boolean;
-  /** Which exporter renders this profile. 'gcode' = template emitter, others are dedicated exporters. */
-  exporter: 'gcode' | 'ima-fmc';
+  /** Which exporter renders this profile. 'gcode' = template emitter. */
+  exporter: 'gcode';
   lengthUnit: 'mm' | 'inch';
   feedUnit: 'mm_min' | 'mm_s' | 'inch_min';
   ext: string;
@@ -42,7 +42,4 @@ export interface ExportResult {
   filename: string;
   text: string;
   warnings: string[];
-  /** 'fmc': IMAWOP sections rather than G-code; `files` carries every (possibly split) file as cp1252 bytes */
-  format?: 'gcode' | 'fmc';
-  files?: { name: string; text: string; bytes: Uint8Array }[];
 }

@@ -31,15 +31,14 @@ const num = (s: string | undefined) => { const v = Number((s ?? '').replace(',',
 /** Convert the calculator's spindle presets into machines. */
 export function machineFromSpindle(s: SpindlePreset): Machine {
   const isHolz = /holz/i.test(s.name);
-  const isIma = /ima/i.test(s.name);
   return newMachine({
     id: `m-${s.id}`, name: s.name, info: s.info,
-    postId: isHolz ? 'estlcam-holz' : isIma ? 'ima-fmc' : 'grbl-mill',
+    postId: isHolz ? 'estlcam-holz' : 'grbl-mill',
     nMax: num(s.nMax) ?? 24000, nMin: num(s.nMin) ?? 0,
     feedMax: { xy: num(s.vfMax) ?? 2500, z: Math.min(1000, num(s.vfMax) ?? 1000) },
-    rapid: isIma ? { xy: 55000, z: 25000 } : { xy: 3000, z: 1000 },
-    travel: isIma ? { x: 2800, y: 1000, z: 440 } : { x: 600, y: 400, z: 100 },
-    toolChange: isIma ? 'auto' : 'manual',
+    rapid: { xy: 3000, z: 1000 },
+    travel: { x: 600, y: 400, z: 100 },
+    toolChange: 'manual',
     climbAllowed: false,
   });
 }
@@ -57,40 +56,6 @@ export function defaultLaserTool(): Tool {
   return newTool({ id: 't-default-laser', kind: 'laser', name: 'Laser 0.2 mm', slot: 9, d: 0.2, cut: { stepDown: 1, stepOverPct: 100, vf: 600, power: 80, passes: 1 } });
 }
 
-/**
- * Tools of the Makerspace IMA BIMA as in its Estlcam tool table (tool numbers = IMA TNR: drills 1–7/33, mills 603+,
- * groove saw 426). Estlcam feeds are mm/s and converted to mm/min.
- */
-export function imaTools(): Tool[] {
-  const mk = (slot: number, kind: Tool['kind'], name: string, d: number, z: number, fMmS: number, fzMmS: number, rpm: number, dpp: number, extra: Partial<Tool> = {}): Tool =>
-    newTool({ id: `t-ima-${slot}`, slot, kind, name, d, z, cut: { stepDown: dpp, stepOverPct: 50, vf: Math.round(fMmS * 60), vfPlunge: Math.round(fzMmS * 60), n: rpm, rampAngle: 10 }, ...extra });
-  return [
-    mk(1, 'drill', '6mm Bohrer SL30mm', 6, 1, 16.67, 16.67, 4000, 12, { tipAngle: 118 }),
-    mk(2, 'drill', '10mm Bohrer SL40mm', 10, 1, 16.67, 16.67, 3000, 20, { tipAngle: 118 }),
-    mk(3, 'drill', '3mm Bohrer SL40mm', 3, 1, 16.67, 16.67, 5000, 6, { tipAngle: 118 }),
-    mk(4, 'drill', '20mm Bohrer SL40mm', 20, 1, 16.67, 16.67, 2000, 20, { tipAngle: 118 }),
-    mk(5, 'drill', '8mm Bohrer SL40mm', 8, 1, 16.67, 16.67, 4000, 16, { tipAngle: 118 }),
-    mk(6, 'drill', '18mm Bohrer SL40mm', 18, 1, 16.67, 16.67, 2000, 20, { tipAngle: 118 }),
-    mk(7, 'drill', '15mm Bohrer SL40mm', 15, 1, 16.67, 16.67, 2000, 20, { tipAngle: 118 }),
-    mk(33, 'drill', '5mm Bohrer SL30mm Lochreihen (System 32)', 5, 1, 16.67, 16.67, 4000, 5, { tipAngle: 118 }),
-    mk(426, 'saw', 'Nutsäge (Sägeaggregat) – Blattbreite prüfen', 2.8, 1, 50, 16.67, 9000, 100),
-    mk(603, 'endmill', '10mm Schaftfräser senkrecht SL21 NL21 Z2', 10, 2, 50, 16.67, 18000, 10, { fluteLength: 21 }),
-    mk(605, 'endmill', '8mm Schruppfräser spiralverzahnt SL35 NL35 Z2', 8, 2, 50, 16.67, 18000, 8, { fluteLength: 35 }),
-    mk(606, 'endmill', '3mm Schaftfräser upcut SL8 NL8 Z2', 3, 2, 16.67, 8.33, 18000, 3, { fluteLength: 8 }),
-    mk(607, 'facemill', '45mm Planfräser SL10 NL10 Z2', 45, 2, 50, 16.67, 3500, 2, { fluteLength: 10 }),
-    mk(609, 'vbit', 'V-Nut Fräser 90° SL10 NL10 Z1', 10, 1, 12.5, 5, 18000, 4, { tipAngle: 90 }),
-    mk(610, 'ballnose', '6mm Radiusfräser upcut SL18 NL60 Z2', 6, 2, 33.33, 16.67, 18000, 6, { fluteLength: 18 }),
-    mk(613, 'endmill', '6mm Schaftfräser compressioncut SL20 NL30 Z2', 6, 2, 16.67, 16.67, 18000, 6, { fluteLength: 20 }),
-    mk(614, 'endmill', '18mm Diafräser compressioncut SL45 NL45', 18, 1, 66.67, 33.33, 10000, 30, { fluteLength: 45 }),
-    mk(615, 'endmill', '38mm Hohlkehlfräser SL32 NL32 Z2', 38, 2, 50, 16.67, 18000, 10, { fluteLength: 32 }),
-    mk(616, 'endmill', '6mm Schaumstofffräser upcut SL25 NL50 Z3', 6, 3, 50, 16.67, 18000, 6, { fluteLength: 25 }),
-    mk(617, 'endmill', '6mm Schaftfräser downcut SL20 NL35 Z2', 6, 2, 50, 16.67, 18000, 3, { fluteLength: 20 }),
-    mk(618, 'endmill', '18mm Wendeplattenfräser senkrecht SL50 NL50 Z2', 18, 2, 66.67, 16.67, 18000, 18, { fluteLength: 50 }),
-    mk(619, 'endmill', '4mm Schaftfräser upcut SL20 NL25 Z2', 4, 2, 33.33, 13.33, 18000, 4, { fluteLength: 20 }),
-    mk(620, 'endmill', '9mm Verbinderfräser SL10 Z2', 9, 2, 50, 16.67, 18000, 9, { fluteLength: 10 }),
-  ];
-}
-
 function defaultTools(): Tool[] {
   return [
     newTool({ id: 't-default-6', name: 'Spiralnutfräser Ø6 mm', slot: 1, d: 6, z: 2, cut: { stepDown: 3, stepOverPct: 40, n: 24000, vf: 2500, vfPlunge: 300, rampAngle: 10 } }),
@@ -103,9 +68,9 @@ function defaultTools(): Tool[] {
 
 function seed(): Library {
   const spindles = [...DEFAULT_SPINDLES.filter((d) => !loadSpindles().some((s) => s.id === d.id)), ...loadSpindles()];
-  const machines = [...spindles.map(machineFromSpindle), defaultLaserMachine()].map((m) => (m.postId === 'ima-fmc' ? { ...m, toolIds: imaTools().map((t) => t.id) } : m));
+  const machines = [...spindles.map(machineFromSpindle), defaultLaserMachine()];
   const presetTools = loadTools().map((t, i) => toolFromPreset(t, i + 10));
-  const tools = [...defaultTools(), ...presetTools, ...imaTools()];
+  const tools = [...defaultTools(), ...presetTools];
   return { machines, tools, profiles: [], activeMachineId: machines[0]?.id ?? '', activeToolId: tools[0]?.id ?? '' };
 }
 
@@ -137,12 +102,14 @@ export const useLibrary = create<LibraryState>((set, get) => {
           if (!lib.tools.some((t) => t.kind === 'laser')) lib.tools = [...lib.tools, defaultLaserTool()];
           window.localStorage.setItem(FLAG, '1');
         }
-        const IMA_FLAG = 'cnc-cam:seeded:ima';
+        // the IMA BIMA profile was removed: drop its machine and its tool table from older libraries
+        const IMA_FLAG = 'cnc-cam:removed:ima';
         if (!window.localStorage.getItem(IMA_FLAG)) {
-          const have = new Set(lib.tools.map((t) => t.id));
-          const add = imaTools().filter((t) => !have.has(t.id));
-          lib.tools = [...lib.tools, ...add];
-          lib.machines = lib.machines.map((m) => (m.postId === 'ima-fmc' && !m.toolIds ? { ...m, toolIds: imaTools().map((t) => t.id) } : m));
+          lib.machines = lib.machines.filter((m) => m.postId !== 'ima-fmc' && m.id !== 'm-default-makerspace-ima-bima-cnc');
+          lib.tools = lib.tools.filter((t) => !t.id.startsWith('t-ima-'));
+          lib.machines = lib.machines.map((m) => (m.toolIds ? { ...m, toolIds: m.toolIds.filter((id) => !id.startsWith('t-ima-')) } : m));
+          if (!lib.machines.some((m) => m.id === lib!.activeMachineId)) lib.activeMachineId = lib.machines[0]?.id ?? '';
+          if (!lib.tools.some((t) => t.id === lib!.activeToolId)) lib.activeToolId = lib.tools[0]?.id ?? '';
           window.localStorage.setItem(IMA_FLAG, '1');
         }
       } catch {}

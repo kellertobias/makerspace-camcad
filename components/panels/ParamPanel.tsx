@@ -63,10 +63,6 @@ function StockParams() {
   const setStock = useProject((p) => p.setStock);
   const name = useProject((p) => p.project.name);
   const update = useProject((p) => p.update);
-  const machineId = useProject((p) => p.project.machineId);
-  const libMachines = useLibrary((l) => l.machines);
-  const libProfiles = useLibrary((l) => l.profiles);
-  const isIma = libProfiles.find((pr) => pr.id === libMachines.find((m) => m.id === machineId)?.postId)?.exporter === 'ima-fmc';
   return (
     <>
       <Section title={s.tree} id="project" defaultOpen={false}>
@@ -80,13 +76,6 @@ function StockParams() {
         <SelectField label={s.material} value={stock.material} options={(Object.keys(s.materials) as Material[]).map((m) => ({ value: m, label: s.materials[m] }))} onChange={(v) => setStock({ material: v })} />
         <Hl k="safeZ"><NumberField label={s.safeZ} unit="mm" value={stock.safeZ} onChange={(v) => setStock({ safeZ: v })} min={0.5} /></Hl>
         <Hl k="clearZ"><NumberField label={s.clearZ} unit="mm" value={stock.clearZ} onChange={(v) => setStock({ clearZ: v })} min={0} /></Hl>
-        {isIma && (<>
-          <div className="full" style={{ fontWeight: 600, fontSize: 12, marginTop: 6 }}>{s.partSize}</div>
-          <NumberField label={s.partWidth} unit="mm" value={stock.part?.width} min={1} placeholder={String(stock.width)} onChange={(v) => setStock({ part: { width: v, height: stock.part?.height ?? stock.height, formatSaw: stock.part?.formatSaw ?? false } })} />
-          <NumberField label={s.partHeight} unit="mm" value={stock.part?.height} min={1} placeholder={String(stock.height)} onChange={(v) => setStock({ part: { width: stock.part?.width ?? stock.width, height: v, formatSaw: stock.part?.formatSaw ?? false } })} />
-          <div className="full"><CheckField label={s.formatSaw} value={stock.part?.formatSaw === true} onChange={(v) => setStock({ part: { width: stock.part?.width ?? stock.width, height: stock.part?.height ?? stock.height, formatSaw: v } })} /></div>
-          <div className="full hint" style={{ margin: 0 }}>{s.partHint}</div>
-        </>)}
       </Section>
       <Section title={s.originMode} id="origin" defaultOpen={false}>
         <div className="full"><ZeroDiagram mode={stock.origin.mode} corner={stock.origin.corner} zZero={stock.zZero} lang={lang} /></div>

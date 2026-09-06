@@ -305,14 +305,9 @@ export async function runGcodeExport() {
   const profile = lib.profiles.find((p) => p.id === machine.postId);
   if (!profile) { ui.notify('Post-processor profile not found.', 'error'); return; }
   const { program } = planProject(project, machine, APP_VERSION);
-  const res = exportProgram(program, profile, project.stock.safeZ, APP_VERSION, { laserMode: machine.laser?.dynamic === false ? 'M3' : 'M4', project, machine });
+  const res = exportProgram(program, profile, project.stock.safeZ, APP_VERSION, { laserMode: machine.laser?.dynamic === false ? 'M3' : 'M4' });
   if (!res.text) { ui.notify(res.warnings.join(' ') || (ui.lang === 'de' ? 'Kein Programm.' : 'No program.'), 'error'); return; }
   for (const w of res.warnings) ui.notify(w);
-  if (res.files?.length) {
-    // IMA: one or more cp1252 FMC files (split at the IMAWOP limits)
-    for (const fl of res.files) await saveText(fl.bytes, fl.name, 'application/octet-stream', [{ description: 'IMAWOP FMC', accept: { 'application/octet-stream': ['.fmc'] } }]);
-    return;
-  }
   await saveText(res.text, res.filename, 'text/plain', [{ description: 'G-code', accept: { 'text/plain': [`.${profile.ext || 'nc'}`] } }]);
 }
 
