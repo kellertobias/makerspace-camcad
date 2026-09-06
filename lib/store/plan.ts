@@ -20,7 +20,7 @@ export function usePlan(): PlanBundle {
     try {
       const plan = planProject(project, machine, APP_VERSION);
       const profile = profiles.find((p) => p.id === machine.postId);
-      const gcode = profile ? exportProgram(plan.program, profile, project.stock.safeZ, APP_VERSION, { laserMode: machine.laser?.dynamic === false ? 'M3' : 'M4' }) : null;
+      const gcode = profile ? exportProgram(plan.program, profile, project.stock.safeZ, APP_VERSION, { laserMode: machine.laser?.dynamic === false ? 'M3' : 'M4', project, machine }) : null;
       return { plan, gcode, machine, error: profile ? null : 'post-missing' };
     } catch (e) {
       console.error(e);

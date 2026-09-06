@@ -31,9 +31,10 @@ export function GcodeView() {
   const machine = machines.find((m) => m.id === (machineId ?? projectMachineId)) ?? machines[0] ?? null;
   const profile = machine ? profiles.find((p) => p.id === machine.postId) ?? null : null;
 
+  const isFmc = source === 'program' && gcode?.format === 'fmc';
   const explained = useMemo(
-    () => (text && machine && profile ? explainGcode(text, { machine, profile, lang }) : null),
-    [text, machine, profile, lang],
+    () => (text && machine && profile && !isFmc ? explainGcode(text, { machine, profile, lang }) : null),
+    [text, machine, profile, lang, isFmc],
   );
   const lines = explained?.lines ?? [];
   const selected: ExplainedLine | null = sel !== null ? lines[sel] ?? null : null;
@@ -53,7 +54,7 @@ export function GcodeView() {
           ))}
         </span>
         {source === 'program' && <span>{gcode?.filename ?? ''}</span>}
-        <span>{s.lines(lines.length)}</span>
+        {!isFmc && <span>{s.lines(lines.length)}</span>}
         <label className="cam-inline">
           {s.explainFor}
           <select value={machine?.id ?? ''} onChange={(e) => setMachineId(e.target.value)}>
@@ -74,7 +75,19 @@ export function GcodeView() {
         <textarea className="cam-gcode-paste" value={custom} spellCheck={false} placeholder={s.pastePlaceholder} onChange={(e) => { setCustom(e.target.value); setSel(null); }} />
       )}
 
-      <div className="cam-gcode-split">
+      {isFmc && (
+        <div className="cam-gcode-plain">
+          <p className="hint">{s.fmcHint} · {s.fmcFiles(gcode?.files?.length ?? 0)}</p>
+          {(gcode?.files ?? []).map((fl) => (
+            <details key={fl.name} open={(gcode?.files?.length ?? 0) === 1}>
+              <summary>{fl.name} · {fl.bytes.length.toLocaleString()} B</summary>
+              <pre>{fl.text}</pre>
+            </details>
+          ))}
+          {!gcode?.files?.length && <div className="cam-empty" style={{ padding: 16 }}>{s.gcodeEmpty}</div>}
+        </div>
+      )}
+      {!isFmc && <div className="cam-gcode-split">
         <div className="cam-gcode-lines" ref={listRef} onScroll={(e) => setScroll(e.currentTarget.scrollTop)}>
           {!lines.length && <div className="cam-empty" style={{ padding: 16 }}>{source === 'custom' ? s.pasteEmpty : s.gcodeEmpty}</div>}
           <div style={{ height: lines.length * ROW, position: 'relative' }}>
@@ -110,7 +123,7 @@ export function GcodeView() {
           )}
           <p className="hint foot">{s.explainDisclaimer}</p>
         </aside>
-      </div>
+      </div>}
     </div>
   );
 }

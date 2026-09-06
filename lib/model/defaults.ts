@@ -75,6 +75,7 @@ export function newOperation(type: OperationType, toolId: string, tool: Tool | u
     case 'pocket': return { ...base, type, side: 'inside', outsideWidth: 1, outsideWidthUnit: 'tool', strategy: 'offset', rasterAngle: 0, islands: 'auto', overcut: none };
     case 'engrave': return { ...base, type, side: 'on', depth: Math.min(depth, 1) };
     case 'drill': return { ...base, type, mode: 'plunge', entry: { kind: 'plunge' } };
+    case 'saw': return { ...base, type, side: 'on', entry: { kind: 'plunge' } };
     case 'thread': return { ...base, type, pitch: 1.25, majorD: 8, internal: true, passes: 1, entry: { kind: 'plunge' } };
     case 'laser-cut': return { ...base, type, power: tool?.cut.power ?? 100, speed: tool?.cut.vf ?? 600, passes: tool?.cut.passes ?? 1, kerfSide: 'outside', depth: 0, entry: { kind: 'plunge' } };
     case 'laser-engrave': return { ...base, type, power: 30, speed: 3000, mode: 'vector', hatchPitch: 0.2, hatchAngle: 0, passes: 1, outline: true, depth: 0, entry: { kind: 'plunge' } };

@@ -108,6 +108,7 @@ export function Ribbon() {
               <RBtn ico="⌖" label={s.drill} onClick={() => (hasSel ? addOperationForSelection('drill') : addPointOperation('drill'))} title={s.placePoints} />
               <RBtn ico="⌀" label={s.thread} onClick={() => (hasSel ? addOperationForSelection('thread') : addPointOperation('thread'))} title={s.placePoints} />
               <RBtn ico="▬" label={s.surface} onClick={addSurfacingOperation} title={s.surfaceHint} />
+              <RBtn ico="⫽" label={s.saw} onClick={() => addOperationForSelection('saw')} disabled={!hasSel} title={s.sawHint} />
             </Group>
           </>)}
           {isLaser && (

@@ -90,6 +90,10 @@ red over-cuts, cut areas coloured by operation, animated tool with material foll
 bundled OFL fonts (`public/fonts/`) or uploaded TTF/OTF, created together with tool and operation (stroke-width check);
 thread milling; point snapping (`lib/geometry/snap.ts`) for drill/thread points and bridges: segment ends and centres,
 ⅓ ⅔ ¼ ¾ points, arc and contour centres, plus a reference line between two dwelled-on points with its own fraction
-points; pockets link rings at depth with one ramp per pass.
+points; pockets link rings at depth with one ramp per pass; laser cut / engrave (vector, hatch) with SVG export;
+machine toolsets and JSON import/export; saw grooves; IMA BIMA export as IMAWOP 2.6 FMC (`lib/post/fmc.ts`, ported from
+the Makerspace ima-bima-cad-converter: program head with finished/raw part and zero offset, mill calls with lines and
+arcs, bores, groove saw, format saw, cp1252, split at 300 kB / 64 bores) with the IMA tool table seeded as toolset.
 
-Pending: laser operations end-to-end + SVG export, saw blades, IMA FMC exporter, IndexedDB project cache.
+Pending: real machine data for the second wood CNC, the metal CNC and the lasers (post-processor profiles, S max, speeds);
+IMA horizontal milling unit (tool 4353) and System-32 row drilling.

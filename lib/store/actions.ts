@@ -105,7 +105,7 @@ export function addOperationForSelection(type: OperationType, side?: 'outside' |
   if (side && (op.type === 'contour' || op.type === 'engrave')) op.side = side;
   if (side && op.type === 'cutout' && side !== 'on') op.side = side;
   if (side && op.type === 'pocket') op.side = side;
-  const names: Record<OperationType, [string, string]> = { contour: ['Kontur', 'Contour'], cutout: ['Ausschnitt', 'Cutout'], pocket: ['Tasche', 'Pocket'], engrave: ['Gravur', 'Engraving'], drill: ['Bohrung', 'Drilling'], thread: ['Gewinde', 'Thread'], 'laser-cut': ['Laserschnitt', 'Laser cut'], 'laser-engrave': ['Lasergravur', 'Laser engraving'] };
+  const names: Record<OperationType, [string, string]> = { contour: ['Kontur', 'Contour'], cutout: ['Ausschnitt', 'Cutout'], pocket: ['Tasche', 'Pocket'], engrave: ['Gravur', 'Engraving'], drill: ['Bohrung', 'Drilling'], thread: ['Gewinde', 'Thread'], 'laser-cut': ['Laserschnitt', 'Laser cut'], 'laser-engrave': ['Lasergravur', 'Laser engraving'], saw: ['Sägenut', 'Saw groove'] };
   const firstPl = ps.project.placements[targets[0].placementId];
   op.name = `${names[type][s === 'de' ? 0 : 1]} ${firstPl?.name ?? ''}`.trim();
   op.targets = targets;
@@ -305,9 +305,14 @@ export async function runGcodeExport() {
   const profile = lib.profiles.find((p) => p.id === machine.postId);
   if (!profile) { ui.notify('Post-processor profile not found.', 'error'); return; }
   const { program } = planProject(project, machine, APP_VERSION);
-  const res = exportProgram(program, profile, project.stock.safeZ, APP_VERSION, { laserMode: machine.laser?.dynamic === false ? 'M3' : 'M4' });
-  if (!res.text) { ui.notify(res.warnings.join(' '), 'error'); return; }
+  const res = exportProgram(program, profile, project.stock.safeZ, APP_VERSION, { laserMode: machine.laser?.dynamic === false ? 'M3' : 'M4', project, machine });
+  if (!res.text) { ui.notify(res.warnings.join(' ') || (ui.lang === 'de' ? 'Kein Programm.' : 'No program.'), 'error'); return; }
   for (const w of res.warnings) ui.notify(w);
+  if (res.files?.length) {
+    // IMA: one or more cp1252 FMC files (split at the IMAWOP limits)
+    for (const fl of res.files) await saveText(fl.bytes, fl.name, 'application/octet-stream', [{ description: 'IMAWOP FMC', accept: { 'application/octet-stream': ['.fmc'] } }]);
+    return;
+  }
   await saveText(res.text, res.filename, 'text/plain', [{ description: 'G-code', accept: { 'text/plain': [`.${profile.ext || 'nc'}`] } }]);
 }
 

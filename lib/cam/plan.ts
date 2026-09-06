@@ -12,11 +12,12 @@ import { drillMoves } from './drill';
 import { threadMoves } from './thread';
 import { pocketMoves, type Exclusion } from './pocket';
 import { laserCutMoves, laserEngraveMoves, type LaserCtx } from './laser';
+import { sawMoves } from './saw';
 import { apply as applyMat } from '@/lib/geometry/transform';
 
 export const OP_TYPE_LABELS: Record<Operation['type'], string> = {
   contour: 'Kontur bearbeiten', cutout: 'Ausschnitt bearbeiten', pocket: 'Räumen', engrave: 'Gravur bearbeiten', drill: 'Bohrung bearbeiten',
-  thread: 'Gewinde bearbeiten', 'laser-cut': 'Laser schneiden', 'laser-engrave': 'Laser gravieren',
+  thread: 'Gewinde bearbeiten', 'laser-cut': 'Laser schneiden', 'laser-engrave': 'Laser gravieren', saw: 'Nuten sägen',
 };
 
 export interface PlanResult { program: Program; /** tool-centre paths per op for drawing */ toolPaths: Record<string, Path[]>; /** bridge centre positions per cutout op (world) */ tabMarks: Record<string, { x: number; y: number }[]> }
@@ -140,6 +141,13 @@ export function planProject(project: Project, machine: Machine, version = 'dev')
             for (const p of pts) { const r = threadMoves(p, op, ctx); opTp.moves.push(...r.moves); opTp.warnings.push(...r.warnings); if (r.moves.length) firstCut = false; }
             break;
           }
+          case 'saw':
+            for (const g of geo.paths) {
+              const r = sawMoves(g, op, ctx);
+              opTp.moves.push(...r.moves); toolPaths[op.id].push(...r.toolPaths); opTp.warnings.push(...r.warnings);
+              if (r.moves.length) { firstCut = false; ctx.s = undefined; }
+            }
+            break;
           case 'laser-cut':
             for (const g of geo.paths) {
               const r = laserCutMoves(g, op, ctx, laser);

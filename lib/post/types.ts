@@ -38,4 +38,11 @@ export interface PostProfile {
   raw?: Record<string, string>;
 }
 
-export interface ExportResult { filename: string; text: string; warnings: string[] }
+export interface ExportResult {
+  filename: string;
+  text: string;
+  warnings: string[];
+  /** 'fmc': IMAWOP sections rather than G-code; `files` carries every (possibly split) file as cp1252 bytes */
+  format?: 'gcode' | 'fmc';
+  files?: { name: string; text: string; bytes: Uint8Array }[];
+}

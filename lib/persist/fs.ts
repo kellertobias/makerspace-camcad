@@ -25,7 +25,7 @@ async function ensureWritable(h: FileHandle): Promise<boolean> {
   } catch { return false; }
 }
 
-export async function saveText(text: string, suggestedName: string, mime = 'application/json', types?: { description: string; accept: Record<string, string[]> }[], reuseHandle = false): Promise<string | null> {
+export async function saveText(text: string | Uint8Array, suggestedName: string, mime = 'application/json', types?: { description: string; accept: Record<string, string[]> }[], reuseHandle = false): Promise<string | null> {
   if (hasFsAccess()) {
     try {
       let handle = reuseHandle ? currentHandle : null;
@@ -33,7 +33,7 @@ export async function saveText(text: string, suggestedName: string, mime = 'appl
       if (handle && !(await ensureWritable(handle))) handle = null;
       if (!handle) handle = await window.showSaveFilePicker!({ suggestedName, types });
       const w = await handle.createWritable();
-      await w.write(text);
+      await w.write(typeof text === 'string' ? text : new Blob([text as BlobPart]));
       await w.close();
       if (reuseHandle || suggestedName.endsWith('.cncproj')) currentHandle = handle;
       return handle.name;
@@ -42,7 +42,7 @@ export async function saveText(text: string, suggestedName: string, mime = 'appl
       throw e;
     }
   }
-  const blob = new Blob([text], { type: mime });
+  const blob = new Blob([text as BlobPart], { type: mime });
   const a = document.createElement('a');
   a.href = URL.createObjectURL(blob);
   a.download = suggestedName;

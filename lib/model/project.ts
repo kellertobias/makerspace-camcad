@@ -77,6 +77,8 @@ export interface Stock {
   safeZ: number;
   /** Height above the surface where the rapid down move ends and the feed move starts. */
   clearZ: number;
+  /** IMA: finished part size (FTL/FTB) inside the raw sheet and whether the format saw trims it first. */
+  part?: { width: number; height: number; formatSaw?: boolean };
 }
 
 // ---------------------------------------------------------------------------
@@ -212,6 +214,8 @@ export type OperationVariant =
   | { type: 'pocket'; side: 'inside' | 'on' | 'outside'; outsideWidth?: number; outsideWidthUnit?: 'mm' | 'tool'; strategy: 'offset' | 'raster' | 'zigzag'; rasterAngle: number; stepOverPct?: number; islands: 'auto' | 'none'; overcut: Overcut }
   | { type: 'engrave'; side: Side }
   | { type: 'drill'; mode: 'plunge' | 'peck' | 'helix'; peck?: number; dwell?: number }
+  /** Saw groove (IMA saw unit): straight segments only, groove width = blade thickness (tool diameter). */
+  | { type: 'saw'; side: 'on' | 'left' | 'right' }
   | { type: 'thread'; pitch: number; majorD: number; internal: boolean; passes: number }
   | { type: 'laser-cut'; power: number; speed: number; passes: number; kerfSide: Side }
   | { type: 'laser-engrave'; power: number; speed: number; mode: 'vector' | 'hatch'; hatchPitch: number; hatchAngle: number; passes?: number; /** hatch: also trace the contour */ outline?: boolean };

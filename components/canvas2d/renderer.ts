@@ -35,7 +35,7 @@ export function tracePath(ctx: CanvasRenderingContext2D, v: View, p: Path) {
 const TOOL_COLORS = ['#e4572e', '#17bebb', '#ffc914', '#76b041', '#a23b72', '#3d5a80', '#f18f01'];
 /** Colours of the milled area per operation type (Fräsbild). */
 export const OP_TYPE_COLORS: Record<string, string> = {
-  contour: '#3d8bfd', cutout: '#e4572e', pocket: '#76b041', engrave: '#ffc914', drill: '#a23b72', thread: '#17bebb', 'laser-cut': '#e4572e', 'laser-engrave': '#ffc914',
+  contour: '#3d8bfd', cutout: '#e4572e', pocket: '#76b041', engrave: '#ffc914', drill: '#a23b72', thread: '#17bebb', 'laser-cut': '#e4572e', 'laser-engrave': '#ffc914', saw: '#9aa3b0',
 };
 
 export interface DrawOpts {

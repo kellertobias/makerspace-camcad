@@ -63,6 +63,10 @@ function StockParams() {
   const setStock = useProject((p) => p.setStock);
   const name = useProject((p) => p.project.name);
   const update = useProject((p) => p.update);
+  const machineId = useProject((p) => p.project.machineId);
+  const libMachines = useLibrary((l) => l.machines);
+  const libProfiles = useLibrary((l) => l.profiles);
+  const isIma = libProfiles.find((pr) => pr.id === libMachines.find((m) => m.id === machineId)?.postId)?.exporter === 'ima-fmc';
   return (
     <>
       <Section title={s.tree} id="project" defaultOpen={false}>
@@ -76,6 +80,13 @@ function StockParams() {
         <SelectField label={s.material} value={stock.material} options={(Object.keys(s.materials) as Material[]).map((m) => ({ value: m, label: s.materials[m] }))} onChange={(v) => setStock({ material: v })} />
         <Hl k="safeZ"><NumberField label={s.safeZ} unit="mm" value={stock.safeZ} onChange={(v) => setStock({ safeZ: v })} min={0.5} /></Hl>
         <Hl k="clearZ"><NumberField label={s.clearZ} unit="mm" value={stock.clearZ} onChange={(v) => setStock({ clearZ: v })} min={0} /></Hl>
+        {isIma && (<>
+          <div className="full" style={{ fontWeight: 600, fontSize: 12, marginTop: 6 }}>{s.partSize}</div>
+          <NumberField label={s.partWidth} unit="mm" value={stock.part?.width} min={1} placeholder={String(stock.width)} onChange={(v) => setStock({ part: { width: v, height: stock.part?.height ?? stock.height, formatSaw: stock.part?.formatSaw ?? false } })} />
+          <NumberField label={s.partHeight} unit="mm" value={stock.part?.height} min={1} placeholder={String(stock.height)} onChange={(v) => setStock({ part: { width: stock.part?.width ?? stock.width, height: v, formatSaw: stock.part?.formatSaw ?? false } })} />
+          <div className="full"><CheckField label={s.formatSaw} value={stock.part?.formatSaw === true} onChange={(v) => setStock({ part: { width: stock.part?.width ?? stock.width, height: stock.part?.height ?? stock.height, formatSaw: v } })} /></div>
+          <div className="full hint" style={{ margin: 0 }}>{s.partHint}</div>
+        </>)}
       </Section>
       <Section title={s.originMode} id="origin" defaultOpen={false}>
         <div className="full"><ZeroDiagram mode={stock.origin.mode} corner={stock.origin.corner} zZero={stock.zZero} lang={lang} /></div>
@@ -173,6 +184,7 @@ export function OperationParams({ op }: { op: Operation }) {
   const sideOpts = (vals: Side[]) => vals.map((v) => ({ value: v, label: s.sides[v] }));
   const through = project.stock.thickness + 1;
   const isLaserOp = op.type === 'laser-cut' || op.type === 'laser-engrave';
+  const noEntry = isLaserOp || op.type === 'saw';
   const removeOperations = useProject((p) => p.removeOperations);
   const clearSelection = useUi((u) => u.clearSelection);
   const tabPlacing = useUi((u) => u.tabPlacing);
@@ -193,8 +205,8 @@ export function OperationParams({ op }: { op: Operation }) {
         {(op.type === 'contour' || op.type === 'engrave' || op.type === 'cutout') && <div className="full"><SideDiagram side={op.side} lang={lang} /></div>}
         {(op.type === 'contour' || op.type === 'engrave') && <Hl k="side"><SelectField label={s.side} value={op.side} options={sideOpts(['outside', 'inside', 'on', 'left', 'right'])} onChange={(v) => patch({ side: v } as Partial<Operation>)} /></Hl>}
         {op.type === 'cutout' && <Hl k="side"><SelectField label={s.side} value={op.side} options={sideOpts(['outside', 'inside'])} onChange={(v) => patch({ side: v } as Partial<Operation>)} /></Hl>}
-        {!isLaserOp && <Hl k="entry"><SelectField label={s.entry} value={op.entry.kind} options={(['plunge', 'ramp', 'helix'] as const).map((k) => ({ value: k, label: s.entries[k] }))} onChange={(v) => patch({ entry: v === 'ramp' ? { kind: 'ramp', angle: op.entry.kind === 'ramp' ? op.entry.angle : tool?.cut.rampAngle ?? 10 } : { kind: v } })} /></Hl>}
-        {!isLaserOp && op.entry.kind === 'ramp' && <Hl k="rampAngle"><NumberField label={s.rampAngle} unit="°" value={op.entry.angle} min={1} max={90} onChange={(v) => patch({ entry: { kind: 'ramp', angle: v } })} title={lang === 'de' ? '90° = kein Rampen, senkrecht eintauchen' : '90° = no ramp, straight plunge'} /></Hl>}
+        {!noEntry && <Hl k="entry"><SelectField label={s.entry} value={op.entry.kind} options={(['plunge', 'ramp', 'helix'] as const).map((k) => ({ value: k, label: s.entries[k] }))} onChange={(v) => patch({ entry: v === 'ramp' ? { kind: 'ramp', angle: op.entry.kind === 'ramp' ? op.entry.angle : tool?.cut.rampAngle ?? 10 } : { kind: v } })} /></Hl>}
+        {!noEntry && op.entry.kind === 'ramp' && <Hl k="rampAngle"><NumberField label={s.rampAngle} unit="°" value={op.entry.angle} min={1} max={90} onChange={(v) => patch({ entry: { kind: 'ramp', angle: v } })} title={lang === 'de' ? '90° = kein Rampen, senkrecht eintauchen' : '90° = no ramp, straight plunge'} /></Hl>}
         {!isLaserOp && <Hl k="zOffset"><NumberField label={s.zOffset} unit="mm" value={op.zOffset} min={0} onChange={(v) => patch({ zOffset: v })} title={s.zOffsetHint} /></Hl>}
         <CheckField label={s.enabled} value={op.enabled} onChange={(v) => patch({ enabled: v })} />
         {(op.type === 'drill' || op.type === 'thread') && (<>
@@ -212,6 +224,13 @@ export function OperationParams({ op }: { op: Operation }) {
         <Hl k="climb"><CheckField label={s.climb} value={climbAllowed && op.climb} onChange={(v) => patch({ climb: v })} disabled={!climbAllowed} /></Hl>
         {!climbAllowed && <div className="full hint" style={{ margin: 0 }}>{s.climbNotAllowed}</div>}
       </Section>
+      {op.type === 'saw' && (
+        <Section title={s.saw} id="op-saw" defaultOpen>
+          <div className="full"><SideDiagram side={op.side} lang={lang} /></div>
+          <SelectField label={s.sawSide} value={op.side} options={sideOpts(['on', 'left', 'right'])} onChange={(v) => patch({ side: v } as Partial<Operation>)} />
+          <div className="full hint" style={{ margin: 0 }}>{s.sawHint}{tool ? ` (${lang === 'de' ? 'Blattbreite' : 'blade width'} ${tool.d} mm)` : ''}</div>
+        </Section>
+      )}
       {op.type === 'laser-cut' && (
         <Section title={s.laserSection} id="op-laser" defaultOpen>
           <div className="full"><SideDiagram side={op.kerfSide} lang={lang} /></div>
