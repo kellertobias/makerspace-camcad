@@ -7,7 +7,7 @@ import { t } from '@/lib/i18n';
 import type { Operation } from '@/lib/model/project';
 import { pathLabel } from '@/lib/store/actions';
 
-export const OP_ICONS: Record<Operation['type'], string> = { contour: '▢', cutout: '✂', pocket: '▤', engrave: '✎', drill: '⌖', thread: '⌀', 'laser-cut': '✂', 'laser-engrave': '✎', saw: '⫽' };
+export const OP_ICONS: Record<Operation['type'], string> = { contour: '▢', cutout: '✂', pocket: '▤', 'surface-3d': '≋', engrave: '✎', drill: '⌖', thread: '⌀', 'laser-cut': '✂', 'laser-engrave': '✎', saw: '⫽' };
 
 export function TreePanel() {
   const lang = useUi((u) => u.lang);

@@ -210,6 +210,8 @@ export type OperationVariant =
   /** Pocket: wall pass on the given side first, then the interior with the step-over.
    *  For side 'outside', `outsideWidth` is how much material is removed around the contour, in mm or in tool widths (`outsideWidthUnit`). */
   | { type: 'pocket'; side: 'inside' | 'on' | 'outside'; outsideWidth?: number; outsideWidthUnit?: 'mm' | 'tool'; strategy: 'offset' | 'raster' | 'zigzag'; rasterAngle: number; stepOverPct?: number; islands: 'auto' | 'none'; overcut: Overcut }
+  /** Sampled 3D relief inside closed contours. The expression returns absolute depth below the stock surface. */
+  | { type: 'surface-3d'; depthExpression: string; sampleStep: number; rasterAngle: number; stepOverPct?: number; finishAllowance: number }
   | { type: 'engrave'; side: Side }
   | { type: 'drill'; mode: 'plunge' | 'peck' | 'helix'; peck?: number; dwell?: number }
   /** Saw groove (saw unit): straight segments only, groove width = blade thickness (tool diameter). */

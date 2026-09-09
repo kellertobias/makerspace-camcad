@@ -14,10 +14,12 @@ import { pocketMoves, type Exclusion } from './pocket';
 import { laserCutMoves, laserEngraveMoves, type LaserCtx } from './laser';
 import { sawMoves } from './saw';
 import { apply as applyMat } from '@/lib/geometry/transform';
+import { surfaceMoves } from './surface';
 
 export const OP_TYPE_LABELS: Record<Operation['type'], string> = {
   contour: 'Kontur bearbeiten', cutout: 'Ausschnitt bearbeiten', pocket: 'Räumen', engrave: 'Gravur bearbeiten', drill: 'Bohrung bearbeiten',
   thread: 'Gewinde bearbeiten', 'laser-cut': 'Laser schneiden', 'laser-engrave': 'Laser gravieren', saw: 'Nuten sägen',
+  'surface-3d': '3D-Oberfläche bearbeiten',
 };
 
 export interface PlanResult { program: Program; /** tool-centre paths per op for drawing */ toolPaths: Record<string, Path[]>; /** bridge centre positions per cutout op (world) */ tabMarks: Record<string, { x: number; y: number }[]> }
@@ -121,7 +123,14 @@ export function planProject(project: Project, machine: Machine, version = 'dev')
         opTp.moves.push(...r.moves); toolPaths[op.id].push(...r.toolPaths); opTp.warnings.push(...r.warnings);
         if (r.moves.length) firstCut = false;
       }
-      for (const target of op.type === 'pocket' || op.type === 'laser-engrave' ? [] : op.targets) {
+      if (op.type === 'surface-3d') {
+        const all: Path[] = [];
+        for (const target of op.targets) all.push(...resolveTarget(project, target).paths);
+        const r = surfaceMoves(all, op, ctx);
+        opTp.moves.push(...r.moves); toolPaths[op.id].push(...r.toolPaths); opTp.warnings.push(...r.warnings);
+        if (r.moves.some((m) => m.k === 'line')) { firstCut = false; ctx.s = undefined; }
+      }
+      for (const target of op.type === 'pocket' || op.type === 'laser-engrave' || op.type === 'surface-3d' ? [] : op.targets) {
         const geo = resolveTarget(project, target);
         switch (op.type) {
           case 'contour': case 'cutout': case 'engrave':

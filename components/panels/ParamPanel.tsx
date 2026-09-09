@@ -173,7 +173,7 @@ export function OperationParams({ op }: { op: Operation }) {
   const sideOpts = (vals: Side[]) => vals.map((v) => ({ value: v, label: s.sides[v] }));
   const through = project.stock.thickness + 1;
   const isLaserOp = op.type === 'laser-cut' || op.type === 'laser-engrave';
-  const noEntry = isLaserOp || op.type === 'saw';
+  const noEntry = isLaserOp || op.type === 'saw' || op.type === 'surface-3d';
   const removeOperations = useProject((p) => p.removeOperations);
   const clearSelection = useUi((u) => u.clearSelection);
   const tabPlacing = useUi((u) => u.tabPlacing);
@@ -188,7 +188,7 @@ export function OperationParams({ op }: { op: Operation }) {
         <div className="full"><TextField label={s.name} value={op.name} onChange={(v) => patch({ name: v })} /></div>
         <div className="full"><SelectField label={s.tool} value={op.toolId} options={tools.map((t) => ({ value: t.id, label: `T${t.slot} ${t.name}` }))} onChange={(v) => { const t = tools.find((x) => x.id === v); if (t) { ensureTool(t); patch({ toolId: v }); } }} /></div>
         {!isLaserOp && <div className="full"><DepthDiagram depth={op.depth} stepDown={op.stepDown ?? tool?.cut.stepDown ?? 1} zOffset={op.zOffset} entry={op.entry} thickness={project.stock.thickness} safeZ={project.stock.safeZ} clearZ={project.stock.clearZ} lang={lang} /></div>}
-        {!isLaserOp && <Hl k="depth"><NumberField label={s.depth} unit="mm" value={op.depth} min={0} onChange={(v) => patch({ depth: v })} /></Hl>}
+        {!isLaserOp && <Hl k="depth"><NumberField label={op.type === 'surface-3d' ? s.surfaceDepthSpan : s.depth} unit="mm" value={op.depth} min={0} onChange={(v) => patch({ depth: v })} /></Hl>}
         {!isLaserOp && <Hl k="stepDown"><NumberField label={s.stepDown} unit="mm" value={op.stepDown ?? tool?.cut.stepDown} min={0.05} onChange={(v) => patch({ stepDown: v })} /></Hl>}
         {(op.type === 'cutout') && <div className="full"><button type="button" className="btn small" onClick={() => patch({ depth: through })}>{s.depthThrough}</button></div>}
         {(op.type === 'contour' || op.type === 'engrave' || op.type === 'cutout') && <div className="full"><SideDiagram side={op.side} lang={lang} /></div>}
@@ -206,13 +206,13 @@ export function OperationParams({ op }: { op: Operation }) {
           {pointPlacing === op.id && <div className="full hint" style={{ margin: 0, color: 'var(--accent)' }}>{s.placingPoints}</div>}
         </>)}
       </Section>
-      <Section title={lang === 'de' ? 'Start & Richtung' : 'Start & direction'} id="op-start" defaultOpen={false}>
+      {op.type !== 'surface-3d' && <Section title={lang === 'de' ? 'Start & Richtung' : 'Start & direction'} id="op-start" defaultOpen={false}>
         <div className="full"><StartDiagram startT={op.startT} startAngle={op.startAngle} climb={climbAllowed && op.climb} lang={lang} /></div>
         <Hl k="startT"><NumberField label={s.startT} unit="0–1" value={op.startT} onChange={(v) => patch({ startT: v })} min={0} max={1} placeholder="auto" /></Hl>
         <Hl k="startAngle"><NumberField label={s.startAngle} unit="°" value={op.startAngle} onChange={(v) => patch({ startAngle: v })} placeholder="auto" /></Hl>
         <Hl k="climb"><CheckField label={s.climb} value={climbAllowed && op.climb} onChange={(v) => patch({ climb: v })} disabled={!climbAllowed} /></Hl>
         {!climbAllowed && <div className="full hint" style={{ margin: 0 }}>{s.climbNotAllowed}</div>}
-      </Section>
+      </Section>}
       {op.type === 'saw' && (
         <Section title={s.saw} id="op-saw" defaultOpen>
           <div className="full"><SideDiagram side={op.side} lang={lang} /></div>
@@ -282,6 +282,20 @@ export function OperationParams({ op }: { op: Operation }) {
           {(op.strategy === 'raster' || op.strategy === 'zigzag') && <Hl k="rasterAngle"><NumberField label={s.rasterAngle} unit="°" value={op.rasterAngle} onChange={(v) => patch({ rasterAngle: v } as Partial<Operation>)} /></Hl>}
           <Hl k="stepOver"><NumberField label={s.stepOver} unit="%" value={op.stepOverPct ?? tool?.cut.stepOverPct} min={5} max={100} onChange={(v) => patch({ stepOverPct: v } as Partial<Operation>)} /></Hl>
           <div className="full hint" style={{ margin: 0 }}>{s.pocketHint}</div>
+        </Section>
+      )}
+      {op.type === 'surface-3d' && (
+        <Section title={s.surfaceSection} id="op-surface-3d" defaultOpen>
+          <label className="cam-field full">
+            <span className="cam-label">{s.depthExpression}</span>
+            <textarea className="cam-textarea" rows={4} value={op.depthExpression} spellCheck={false} onChange={(e) => patch({ depthExpression: e.target.value } as Partial<Operation>)} />
+          </label>
+          <div className="full hint" style={{ margin: 0 }}>{s.surfaceFormulaHint}</div>
+          <NumberField label={s.sampleStep} unit="mm" value={op.sampleStep} min={0.05} onChange={(v) => patch({ sampleStep: v } as Partial<Operation>)} />
+          <NumberField label={s.stepOver} unit="%" value={op.stepOverPct ?? tool?.cut.stepOverPct} min={5} max={90} onChange={(v) => patch({ stepOverPct: v } as Partial<Operation>)} />
+          <NumberField label={s.rasterAngle} unit="°" value={op.rasterAngle} onChange={(v) => patch({ rasterAngle: v } as Partial<Operation>)} />
+          <NumberField label={s.finishAllowance} unit="mm" value={op.finishAllowance} min={0} onChange={(v) => patch({ finishAllowance: v } as Partial<Operation>)} />
+          <div className="full hint" style={{ margin: 0 }}>{s.surfaceFinishHint}</div>
         </Section>
       )}
       {op.type === 'drill' && (

@@ -1,7 +1,7 @@
 # Makerspace CAM/CAD (makerspace-camcad)
 
-Browser-based 2.5D CAM for the Makerspace machines: import DXF/SVG outlines, lay them out on a sheet, assign
-operations (contour, cutout with bridges, pocket, engraving, drilling), preview toolpaths and generate G-code through
+Browser-based 2.5D/3D CAM for the Makerspace machines: import DXF/SVG outlines, lay them out on a sheet, assign
+operations (contour, cutout with bridges, pocket, formula-defined 3D surfaces, engraving, drilling), preview toolpaths and generate G-code through
 data-driven post-processor profiles. The G-code view explains every line for the selected machine (movement, distance,
 feed, duration, limit violations) and also explains G-code you paste in yourself. Fully static
 (Next.js `output: 'export'`), no server. The original cutting-data
@@ -45,8 +45,26 @@ npm run dev        # development
 npm run build      # static export to out/
 npm start          # serve out/
 npm test           # vitest (geometry, CAM, post-processor)
+npm run test:bench # Playwright DXF/SVG -> UI operations -> external G-code comparison
 npm run screenshots  # re-render docs/screenshots/ from out/ with the local Chrome (needs npm run build first)
 ```
+
+The fixture-driven CAM comparison bench is documented in
+[`tests/bench/README.md`](tests/bench/README.md). A case supplies a DXF/SVG, contour indices and operation settings, plus
+G-code exported by another CAM program. The bench performs the workflow through the browser UI and reports the first
+normalized G-code differences with original source line numbers.
+
+### Formula-defined 3D surfaces
+
+Select one or more closed contours and add **3D surface** from the Operations tab. The formula receives `distance`
+(or `d`), the inward distance from the nearest contour boundary in millimetres, and `startDepth`. It returns the final
+absolute depth below the stock surface. For example, with a 2 mm start depth and a 20 mm maximum depth span,
+`startDepth + 10 * (1 - Math.cos(distance / 5))` creates repeating waves between 2 and 22 mm.
+
+Sampling distance controls Z resolution along each raster line; step-over controls the distance between lines. Roughing
+uses the tool's step-down and leaves the configured finishing allowance everywhere. A final pass then follows the exact
+sampled surface. Expressions support arithmetic, comparisons, ternaries, and common `Math` functions, without allowing
+arbitrary code from imported project files.
 
 ## Deployment
 
@@ -63,12 +81,13 @@ components/     shell (ribbon, tree, status, G-code view), canvas2d, panels, mod
 lib/model       project document model (shapes, placements, groups, stock, tools, machines, operations)
 lib/geometry    paths with arcs, transforms, arc refit, offsetting (clipper-lib), containment
 lib/import      DXF (dxf-parser), SVG (DOMParser), joining/orientation
-lib/cam         planner: depth passes, ramp/helix entries, contour/cutout/tabs/pocket/drill, zero point, time estimate
+lib/cam         planner: depth passes, ramp/helix entries, contour/cutout/tabs/pocket/formula surfaces/drill, zero point, time estimate
 lib/post        Estlcam-compatible post-processor emitter, .pp import/export, built-in profiles
 lib/store       zustand stores (project with undo/redo, UI, machine/tool/profile library), actions
 lib/persist     File System Access API with download fallback
 public/samples  example drawings
 tests/          unit tests and the Estlcam golden files (holzcncv12.pp, namensschild.nc)
+tests/bench/    Playwright comparison cases against G-code from another CAM system
 ```
 
 ## Post-processors

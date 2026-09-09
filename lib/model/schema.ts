@@ -17,6 +17,7 @@ function fillDefaults(p: Record<string, unknown>) {
   const ops = (p.operations ?? {}) as Record<string, Record<string, unknown>>;
   for (const op of Object.values(ops)) {
     if (op.type === 'pocket') { op.side ??= 'inside'; op.outsideWidthUnit ??= 'mm'; delete op.finishPass; }
+    if (op.type === 'surface-3d') { op.depthExpression ??= 'startDepth'; op.sampleStep ??= 1; op.rasterAngle ??= 0; op.finishAllowance ??= 0.5; }
   }
 }
 

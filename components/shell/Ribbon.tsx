@@ -104,6 +104,7 @@ export function Ribbon() {
             <Group title={s.operations}>
               <RBtn ico="✂" label={s.cutout} onClick={() => addOperationForSelection('cutout', 'outside')} disabled={!hasSel} />
               <RBtn ico="▤" label={s.pocket} onClick={() => addOperationForSelection('pocket')} disabled={!hasSel} />
+              <RBtn ico="≋" label={s.surface3d} onClick={() => addOperationForSelection('surface-3d')} disabled={!hasSel} title={s.surface3dHint} />
               <RBtn ico="✎" label={s.engrave} onClick={() => addOperationForSelection('engrave', 'on')} disabled={!hasSel} />
               <RBtn ico="⌖" label={s.drill} onClick={() => (hasSel ? addOperationForSelection('drill') : addPointOperation('drill'))} title={s.placePoints} />
               <RBtn ico="⌀" label={s.thread} onClick={() => (hasSel ? addOperationForSelection('thread') : addPointOperation('thread'))} title={s.placePoints} />

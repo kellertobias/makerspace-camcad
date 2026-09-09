@@ -73,6 +73,7 @@ export function newOperation(type: OperationType, toolId: string, tool: Tool | u
     case 'contour': return { ...base, type, side: 'outside', overcut: none };
     case 'cutout': return { ...base, type, side: 'outside', overcut: none, tabs: { count: 4, width: 8, height: 3 } };
     case 'pocket': return { ...base, type, side: 'inside', outsideWidth: 1, outsideWidthUnit: 'tool', strategy: 'offset', rasterAngle: 0, islands: 'auto', overcut: none };
+    case 'surface-3d': return { ...base, type, depthExpression: 'startDepth + 4 * (1 + Math.sin(distance / 4)) / 2', sampleStep: 1, rasterAngle: 0, stepOverPct: tool?.cut.stepOverPct ?? 40, finishAllowance: 0.5, entry: { kind: 'plunge' } };
     case 'engrave': return { ...base, type, side: 'on', depth: Math.min(depth, 1) };
     case 'drill': return { ...base, type, mode: 'plunge', entry: { kind: 'plunge' } };
     case 'saw': return { ...base, type, side: 'on', entry: { kind: 'plunge' } };

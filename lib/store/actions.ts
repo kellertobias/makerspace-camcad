@@ -105,7 +105,7 @@ export function addOperationForSelection(type: OperationType, side?: 'outside' |
   if (side && (op.type === 'contour' || op.type === 'engrave')) op.side = side;
   if (side && op.type === 'cutout' && side !== 'on') op.side = side;
   if (side && op.type === 'pocket') op.side = side;
-  const names: Record<OperationType, [string, string]> = { contour: ['Kontur', 'Contour'], cutout: ['Ausschnitt', 'Cutout'], pocket: ['Tasche', 'Pocket'], engrave: ['Gravur', 'Engraving'], drill: ['Bohrung', 'Drilling'], thread: ['Gewinde', 'Thread'], 'laser-cut': ['Laserschnitt', 'Laser cut'], 'laser-engrave': ['Lasergravur', 'Laser engraving'], saw: ['Sägenut', 'Saw groove'] };
+  const names: Record<OperationType, [string, string]> = { contour: ['Kontur', 'Contour'], cutout: ['Ausschnitt', 'Cutout'], pocket: ['Tasche', 'Pocket'], 'surface-3d': ['3D-Oberfläche', '3D surface'], engrave: ['Gravur', 'Engraving'], drill: ['Bohrung', 'Drilling'], thread: ['Gewinde', 'Thread'], 'laser-cut': ['Laserschnitt', 'Laser cut'], 'laser-engrave': ['Lasergravur', 'Laser engraving'], saw: ['Sägenut', 'Saw groove'] };
   const firstPl = ps.project.placements[targets[0].placementId];
   op.name = `${names[type][s === 'de' ? 0 : 1]} ${firstPl?.name ?? ''}`.trim();
   op.targets = targets;

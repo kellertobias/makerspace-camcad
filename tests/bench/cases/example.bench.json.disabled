@@ -1,0 +1,25 @@
+{
+  "name": "Example external-CAM comparison",
+  "drawing": "../../../public/samples/slot-plate.dxf",
+  "referenceGcode": "./slot-plate-from-other-cam.nc",
+  "machineId": "m-default-makerspace-holz-cnc",
+  "stock": { "width": 100, "height": 80, "thickness": 12, "safeZ": 5, "clearZ": 0.5 },
+  "placement": { "x": 10, "y": 10, "rotation": 0, "scale": 1 },
+  "operations": [
+    {
+      "type": "cutout",
+      "contours": [0],
+      "settings": {
+        "name": "Outer profile",
+        "toolId": "t-default-6",
+        "depth": 13,
+        "stepDown": 3,
+        "side": "outside",
+        "entry": { "kind": "ramp", "angle": 10 },
+        "feed": { "vf": 2500, "vfPlunge": 300 },
+        "tabs": { "mode": "auto", "count": 4, "width": 8, "height": 3 }
+      }
+    }
+  ],
+  "comparison": { "ignoreLineNumbers": false }
+}

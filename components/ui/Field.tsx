@@ -50,7 +50,7 @@ export function Section({ title, children, actions, id, defaultOpen = true }: { 
   const [open, setOpen] = useState(() => (id ? loadOpen()[id] ?? defaultOpen : true));
   const toggle = () => { if (!id) return; setOpen((o) => { saveOpen(id, !o); return !o; }); };
   return (
-    <section className={`cam-section${open ? '' : ' closed'}`}>
+    <section className={`cam-section${open ? '' : ' closed'}`} data-section={id}>
       <header>
         <h3 onClick={toggle} style={id ? { cursor: 'pointer' } : undefined}>{id && <span className="caret" aria-hidden="true">{open ? '▾' : '▸'}</span>}{title}</h3>
         {actions}
