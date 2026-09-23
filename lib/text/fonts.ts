@@ -4,6 +4,7 @@ import type { Font } from 'opentype.js';
 export interface FontEntry { id: string; name: string; url?: string; builtIn: boolean }
 
 export const BUILT_IN_FONTS: FontEntry[] = [
+  { id: 'single-stroke', name: 'Single Stroke (tool centre)', builtIn: true },
   { id: 'nunito', name: 'Nunito (Sans)', url: 'fonts/Nunito.ttf', builtIn: true },
   { id: 'oswald', name: 'Oswald (Condensed)', url: 'fonts/Oswald.ttf', builtIn: true },
   { id: 'robotomono', name: 'Roboto Mono', url: 'fonts/RobotoMono.ttf', builtIn: true },

@@ -10,6 +10,7 @@ import { t } from '@/lib/i18n';
 import { toolsForMachine } from '@/lib/persist/libraryFiles';
 import { BUILT_IN_FONTS, addUserFont, listUserFonts, loadFont, type FontEntry } from '@/lib/text/fonts';
 import { textToPaths, estimateMinStroke } from '@/lib/geometry/text';
+import { STROKE_FONT_ID, strokeTextToPaths } from '@/lib/text/strokeFont';
 import { offsetClosed } from '@/lib/geometry/offset';
 import type { Path, Placement, Shape, TextSpec, Operation, OperationType } from '@/lib/model/project';
 import { newId } from '@/lib/model/ids';
@@ -41,20 +42,23 @@ export function TextModal() {
   const [error, setError] = useState<string | null>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const tool = lib.tools.find((x) => x.id === toolId);
+  const isStrokeFont = spec.font === STROKE_FONT_ID;
 
   useEffect(() => { listUserFonts().then((u) => setFonts([...BUILT_IN_FONTS, ...u])); }, []);
 
-  // regenerate outlines (debounced)
+  // Regenerate text geometry (debounced).
   useEffect(() => {
+    let cancelled = false;
+    setPaths([]);
     const h = setTimeout(async () => {
-      try { const font = await loadFont(spec.font); setPaths(textToPaths(font, spec)); setError(null); }
-      catch (e) { setError((e as Error).message); setPaths([]); }
+      try { const next = spec.font === STROKE_FONT_ID ? strokeTextToPaths(spec) : textToPaths(await loadFont(spec.font), spec); if (!cancelled) { setPaths(next); setError(null); } }
+      catch (e) { if (!cancelled) { setError((e as Error).message); setPaths([]); } }
     }, 150);
-    return () => clearTimeout(h);
+    return () => { cancelled = true; clearTimeout(h); };
   }, [spec]);
 
-  const minStroke = useMemo(() => (paths.length ? estimateMinStroke(paths, offsetClosed, Math.max(2, spec.size)) : 0), [paths, spec.size]);
-  const toolFits = tool ? (opType === 'pocket' ? tool.d <= minStroke + 1e-6 : opType === 'engrave' ? tool.kind === 'vbit' || tool.d <= minStroke + 1e-6 : true) : true;
+  const minStroke = useMemo(() => (!isStrokeFont && paths.length ? estimateMinStroke(paths, offsetClosed, Math.max(2, spec.size)) : 0), [paths, spec.size, isStrokeFont]);
+  const toolFits = isStrokeFont || !tool ? true : (opType === 'pocket' ? tool.d <= minStroke + 1e-6 : opType === 'engrave' ? tool.kind === 'vbit' || tool.d <= minStroke + 1e-6 : true);
 
   // preview
   useEffect(() => {
@@ -98,7 +102,7 @@ export function TextModal() {
   };
 
   const create = () => {
-    if (!paths.length) return;
+    if (!paths.length || (isStrokeFont && opType !== 'engrave' && opType !== 'none')) return;
     const ps = useProject.getState();
     const ui = useUi.getState();
     // shape local origin at the bounding-box corner like imported drawings
@@ -124,14 +128,24 @@ export function TextModal() {
       const depth = type === 'engrave' ? (tool.kind === 'vbit' ? 1 : 0.5) : type === 'pocket' ? Math.min(3, project.stock.thickness / 2) : project.stock.thickness + 1;
       const op = newOperation(type, tool.id, tool, depth, Object.keys(ps.project.operations).length + 1);
       if (op.type === 'engrave') op.side = 'on';
+      if (isStrokeFont) op.entry = { kind: 'plunge' };
       if (op.type === 'pocket') op.side = 'inside';
       if (op.type === 'contour') op.side = 'outside';
       op.name = `${s.opNames[type]} ${spec.text.split('\n')[0]}`.trim();
       op.targets = local.map((pa) => ({ placementId, pathId: pa.id, pick: 'contour' }));
       ps.addOperation(op as Operation);
       ui.select({ operations: [op.id] });
-    } else if (existingOp && tool && existingOp.toolId !== tool.id) {
-      ps.ensureTool(tool); ps.updateOperation(existingOp.id, { toolId: tool.id });
+    } else if (existingOp) {
+      if (opType === 'none') ps.removeOperations([existingOp.id]);
+      else if (tool) {
+        ps.ensureTool(tool);
+        if (existingOp.type !== opType) {
+          const changed = newOperation(opType, tool.id, tool, existingOp.depth, existingOp.order, existingOp.climb);
+          if (isStrokeFont) changed.entry = { kind: 'plunge' };
+          ps.update((p) => { p.operations[existingOp.id] = { ...changed, id: existingOp.id, name: existingOp.name, targets: p.operations[existingOp.id].targets, zOffset: existingOp.zOffset }; });
+        } else ps.updateOperation(existingOp.id, { toolId: tool.id, ...(isStrokeFont ? { side: 'on' as const, entry: { kind: 'plunge' as const } } : {}) });
+      }
+      ui.select({ placements: [placementId] });
     } else ui.select({ placements: [placementId] });
     ui.setDirty(true);
     close();
@@ -142,17 +156,18 @@ export function TextModal() {
       <div className="cam-textmodal">
         <div className="fields">
           <label className="cam-field full"><span className="cam-label">{s.textContent}</span><textarea className="cam-textarea" style={{ minHeight: 64 }} value={spec.text} onChange={(e) => setSpec({ ...spec, text: e.target.value })} /></label>
-          <SelectField label={s.font} value={spec.font} options={fonts.map((f) => ({ value: f.id, label: f.name }))} onChange={(v) => setSpec({ ...spec, font: v })} />
+          <SelectField label={s.font} value={spec.font} options={fonts.map((f) => ({ value: f.id, label: f.name }))} onChange={(v) => { setSpec({ ...spec, font: v }); if (v === STROKE_FONT_ID && opType !== 'none') setOpType('engrave'); }} />
           <div className="cam-field"><span className="cam-label">&nbsp;</span><button type="button" className="btn small" onClick={upload}>{s.uploadFont}</button></div>
           <NumberField label={s.fontSize} unit="mm" value={spec.size} min={1} onChange={(v) => setSpec({ ...spec, size: v })} />
           <NumberField label={s.letterSpacing} unit="mm" value={spec.letterSpacing ?? 0} onChange={(v) => setSpec({ ...spec, letterSpacing: v })} />
           <SelectField label={s.align} value={spec.align ?? 'left'} options={(['left', 'center', 'right'] as const).map((a) => ({ value: a, label: s.aligns[a] }))} onChange={(v) => setSpec({ ...spec, align: v })} />
           <NumberField label={lang === 'de' ? 'Zeilenhöhe (× Höhe)' : 'Line height (× size)'} value={spec.lineHeight ?? 1.2} min={0.5} onChange={(v) => setSpec({ ...spec, lineHeight: v })} />
           <SelectField label={s.textTool} value={toolId} options={toolsForMachine(lib.tools, lib.machines.find((m) => m.id === project.machineId)).map((tl) => ({ value: tl.id, label: `T${tl.slot} ${tl.name} (Ø${tl.d}${tl.kind === 'vbit' ? `, ${tl.tipAngle ?? 90}°` : ''})` }))} onChange={setToolId} />
-          <SelectField label={s.textOp} value={opType} options={(['engrave', 'pocket', 'contour', 'none'] as TextOp[]).map((o) => ({ value: o, label: s.textOps[o] }))} onChange={setOpType} />
+          <SelectField label={s.textOp} value={opType} options={(isStrokeFont ? ['engrave', 'none'] : ['engrave', 'pocket', 'contour', 'none']).map((o) => ({ value: o, label: isStrokeFont && o === 'engrave' ? s.strokeEngrave : s.textOps[o] }))} onChange={(v) => setOpType(v as TextOp)} />
           <div className="full hint" style={{ margin: 0 }}>
-            {paths.length > 0 && <div>{s.minStroke(minStroke.toFixed(2))}</div>}
-            {tool && opType !== 'none' && paths.length > 0 && (toolFits ? <div style={{ color: '#76b041' }}>✓ {s.toolOk}</div> : <div style={{ color: '#d2413a' }}>⚠ {s.toolTooBig(String(tool.d), minStroke.toFixed(2))}</div>)}
+            {isStrokeFont && <div>{s.strokeHint}</div>}
+            {!isStrokeFont && paths.length > 0 && <div>{s.minStroke(minStroke.toFixed(2))}</div>}
+            {!isStrokeFont && tool && opType !== 'none' && paths.length > 0 && (toolFits ? <div style={{ color: '#76b041' }}>✓ {s.toolOk}</div> : <div style={{ color: '#d2413a' }}>⚠ {s.toolTooBig(String(tool.d), minStroke.toFixed(2))}</div>)}
             {error && <div style={{ color: '#d2413a' }}>{error}</div>}
           </div>
         </div>
