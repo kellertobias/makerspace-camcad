@@ -14,6 +14,7 @@ import { scheduleSessionSave } from '@/lib/persist/session';
 import { toolsForMachine } from '@/lib/persist/libraryFiles';
 import { migrateProject } from '@/lib/model/schema';
 import { planProject } from '@/lib/cam/plan';
+import { safeTravelZ } from '@/lib/cam/zero';
 import { exportProgram, exportSvg } from '@/lib/post';
 import { APP_VERSION } from '@/lib/version';
 
@@ -305,7 +306,7 @@ export async function runGcodeExport() {
   const profile = lib.profiles.find((p) => p.id === machine.postId);
   if (!profile) { ui.notify('Post-processor profile not found.', 'error'); return; }
   const { program } = planProject(project, machine, APP_VERSION);
-  const res = exportProgram(program, profile, project.stock.safeZ, APP_VERSION, { laserMode: machine.laser?.dynamic === false ? 'M3' : 'M4' });
+  const res = exportProgram(program, profile, safeTravelZ(project.stock), APP_VERSION, { laserMode: machine.laser?.dynamic === false ? 'M3' : 'M4' });
   if (!res.text) { ui.notify(res.warnings.join(' ') || (ui.lang === 'de' ? 'Kein Programm.' : 'No program.'), 'error'); return; }
   for (const w of res.warnings) ui.notify(w);
   await saveText(res.text, res.filename, 'text/plain', [{ description: 'G-code', accept: { 'text/plain': [`.${profile.ext || 'nc'}`] } }]);

@@ -73,7 +73,7 @@ export interface Stock {
   origin: { mode: OriginMode; corner: Corner; manual: Vec2 };
   /** Where Z = 0 sits: on top of the stock or on the machine bed. */
   zZero: 'top' | 'bottom';
-  /** Height for rapid moves between operations. */
+  /** Safe travel height above the stock top (and Z=0 when zero is set on top). */
   safeZ: number;
   /** Height above the surface where the rapid down move ends and the feed move starts. */
   clearZ: number;
@@ -207,7 +207,7 @@ export interface OperationBase {
 export type OperationVariant =
   | { type: 'contour'; side: Side; overcut: Overcut }
   | { type: 'cutout'; side: 'outside' | 'inside'; tabs?: TabsSpec; overcut: Overcut }
-  /** Pocket: wall pass on the given side first, then the interior with the step-over.
+  /** Pocket: clear the interior with the step-over, then finish the outside wall.
    *  For side 'outside', `outsideWidth` is how much material is removed around the contour, in mm or in tool widths (`outsideWidthUnit`). */
   | { type: 'pocket'; side: 'inside' | 'on' | 'outside'; outsideWidth?: number; outsideWidthUnit?: 'mm' | 'tool'; strategy: 'offset' | 'raster' | 'zigzag'; rasterAngle: number; stepOverPct?: number; islands: 'auto' | 'none'; overcut: Overcut }
   /** Sampled 3D relief inside closed contours. The expression returns absolute depth below the stock surface. */

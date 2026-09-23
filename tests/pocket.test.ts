@@ -1,9 +1,10 @@
 import { describe, it, expect } from 'vitest';
 import { polylinePath, signedArea, bbox, flatten, closestPoint } from '@/lib/geometry/path';
 import { pocketMoves } from '@/lib/cam/pocket';
-import { newOperation, newTool } from '@/lib/model/defaults';
+import { defaultStock, newOperation, newTool } from '@/lib/model/defaults';
 import type { Operation } from '@/lib/model/project';
 import type { ContourCtx } from '@/lib/cam/contour';
+import { safeTravelZ } from '@/lib/cam/zero';
 
 const rect = () => polylinePath([{ x: 10, y: 10 }, { x: 90, y: 10 }, { x: 90, y: 50 }, { x: 10, y: 50 }], true);
 const tool = newTool({ id: 't', d: 6, cut: { stepDown: 3, stepOverPct: 50, vfPlunge: 300, vf: 1000 } });
@@ -11,24 +12,37 @@ const ctx: ContourCtx = { tool, safeZ: 5, clearZ: 0.5, vf: 1000, vfPlunge: 300, 
 const op = (side: 'inside' | 'on' | 'outside') => { const o = newOperation('pocket', 't', tool, 3, 1) as Operation & { type: 'pocket' }; o.side = side; o.outsideWidth = 12; o.outsideWidthUnit = 'mm'; o.entry = { kind: 'plunge' }; return o; };
 const size = (p: ReturnType<typeof rect>) => { const b = bbox(p); return [Math.round((b.maxX - b.minX) * 100) / 100, Math.round((b.maxY - b.minY) * 100) / 100]; };
 
+it('new stock uses a 10 mm safe travel height above top Z zero', () => {
+  const stock = defaultStock();
+  expect(stock.zZero).toBe('top');
+  expect(stock.safeZ).toBe(10);
+  expect(safeTravelZ(stock)).toBe(10);
+  expect(safeTravelZ({ ...stock, zZero: 'bottom' })).toBe(stock.thickness + 10);
+});
+
 describe('pocket sides', () => {
-  it('inside: wall is the contour shrunk by r, then rings inward', () => {
+  it.each(['offset', 'raster', 'zigzag'] as const)('cuts the outside contour last with %s fill', (strategy) => {
+    const o = op('outside'); o.strategy = strategy;
+    const r = pocketMoves([rect()], o, ctx);
+    expect(size(r.toolPaths.at(-1)!)).toEqual([86, 46]);
+  });
+  it('inside: rings grow outward and the contour wall is cut last', () => {
     const r = pocketMoves([rect()], op('inside'), ctx);
     expect(r.warnings).toEqual([]);
-    expect(size(r.toolPaths[0])).toEqual([74, 34]);
+    expect(size(r.toolPaths.at(-1)!)).toEqual([74, 34]);
     expect(r.toolPaths.length).toBeGreaterThan(3);
-    expect(Math.abs(signedArea(r.toolPaths[1]))).toBeLessThan(Math.abs(signedArea(r.toolPaths[0])));
+    expect(size(r.toolPaths[0])[0]).toBeLessThan(size(r.toolPaths[1])[0]);
   });
   it('on: wall is the contour itself', () => {
     const r = pocketMoves([rect()], op('on'), ctx);
-    expect(size(r.toolPaths[0])).toEqual([80, 40]);
-    expect(size(r.toolPaths[1])).toEqual([74, 34]);
+    expect(size(r.toolPaths.at(-1)!)).toEqual([80, 40]);
+    expect(r.toolPaths.some((p) => size(p)[0] === 74)).toBe(true);
   });
-  it('outside: contour+r wall first, then the band boundary at width − r, then the whole interior is cleared', () => {
+  it('outside: the contour-hugging wall is cut after the outer band and interior', () => {
     const r = pocketMoves([rect()], op('outside'), ctx);
     expect(r.warnings).toEqual([]);
-    expect(size(r.toolPaths[0])).toEqual([86, 46]); // hugging pass at +3
-    expect(size(r.toolPaths[1])).toEqual([98, 58]); // band boundary at +9 (12 mm removed around the contour)
+    expect(size(r.toolPaths.at(-1)!)).toEqual([86, 46]); // hugging pass at +3
+    expect(r.toolPaths.some((p) => size(p)[0] === 98)).toBe(true); // band boundary at +9
     // rings continue inward past the contour: the smallest ring is well inside the part
     const minHeight = Math.min(...r.toolPaths.map((p) => size(p)[1]));
     expect(minHeight).toBeLessThan(10);
@@ -37,7 +51,7 @@ describe('pocket sides', () => {
     const island = polylinePath([{ x: 40, y: 20 }, { x: 60, y: 20 }, { x: 60, y: 40 }, { x: 40, y: 40 }], true);
     const r = pocketMoves([rect(), island], op('inside'), ctx);
     // two wall paths: outer shrunk (74x34) and island grown (26x26)
-    const sizes = r.toolPaths.slice(0, 2).map(size).sort((a, b) => a[0] - b[0]);
+    const sizes = r.toolPaths.filter((p) => p.closed).map(size).filter((s) => s[0] === 26 || s[0] === 74).sort((a, b) => a[0] - b[0]);
     expect(sizes).toEqual([[26, 26], [74, 34]]);
   });
 });
@@ -58,11 +72,11 @@ describe('outside width units', () => {
   it('tool widths convert to mm and one tool width is just the wall pass', () => {
     const o = op('outside'); o.outsideWidth = 2; o.outsideWidthUnit = 'tool';
     const r = pocketMoves([rect()], o, ctx);
-    const sizes = r.toolPaths.slice(0, 2).map(size).sort((a, b) => a[0] - b[0]);
+    const sizes = r.toolPaths.filter((p) => p.closed).map(size).filter((s) => s[0] === 86 || s[0] === 98).sort((a, b) => a[0] - b[0]);
     expect(sizes).toEqual([[86, 46], [98, 58]]); // +3 wall and +9 outer boundary (2 × 6 mm = 12 mm band)
     const o1 = op('outside'); o1.outsideWidth = 1; o1.outsideWidthUnit = 'tool';
     const r1 = pocketMoves([rect()], o1, ctx);
-    expect(size(r1.toolPaths[0])).toEqual([86, 46]); // one tool width: the wall pass is the band
+    expect(size(r1.toolPaths.at(-1)!)).toEqual([86, 46]); // one tool width: the wall pass is the band
     expect(r1.toolPaths.length).toBeGreaterThan(1); // interior still cleared
   });
 });
@@ -72,7 +86,7 @@ describe('exclusion zones', () => {
     const post = polylinePath([{ x: 45, y: 25 }, { x: 55, y: 25 }, { x: 55, y: 35 }, { x: 45, y: 35 }], true);
     const r = pocketMoves([rect()], op('inside'), ctx, [{ path: post, margin: 4 }]);
     // walls: outer shrunk (74x34) and the standoff grown by r + margin = 7 -> 24x24
-    const sizes = r.toolPaths.slice(0, 2).map(size).sort((a, b) => a[0] - b[0]);
+    const sizes = r.toolPaths.filter((p) => p.closed).map(size).filter((s) => s[0] === 24 || s[0] === 74).sort((a, b) => a[0] - b[0]);
     expect(sizes).toEqual([[24, 24], [74, 34]]);
     // no tool-centre path enters the protected square (10x10 grown by 7 => keep-out 24x24 around (50,30))
     const distToSquare = (q: { x: number; y: number }) => Math.hypot(Math.max(0, Math.abs(q.x - 50) - 5), Math.max(0, Math.abs(q.y - 30) - 5));
@@ -84,9 +98,9 @@ describe('zig-zag strategy', () => {
   it('chains the raster lines into one continuous path', () => {
     const o = op('inside'); o.strategy = 'zigzag'; o.rasterAngle = 0;
     const r = pocketMoves([rect()], o, ctx);
-    // wall + one chained fill path
+    // one chained fill path, followed by the wall
     expect(r.toolPaths.length).toBe(2);
-    const zz = r.toolPaths[1];
+    const zz = r.toolPaths[0];
     expect(zz.closed).toBe(false);
     expect(zz.segs.length).toBeGreaterThan(10);
     // alternating direction: consecutive horizontal runs go opposite ways
@@ -102,6 +116,13 @@ describe('zig-zag strategy', () => {
 
 describe('ring linking', () => {
   const zOf = (m: { z?: number }) => m.z;
+  it('opens inner rings into a continuous outward spiral and finishes the outside contour', () => {
+    const r = pocketMoves([rect()], op('inside'), ctx);
+    expect(r.toolPaths[0].closed).toBe(false);
+    expect(r.toolPaths.at(-1)!.closed).toBe(true);
+    expect(size(r.toolPaths.at(-1)!)).toEqual([74, 34]);
+    expect(r.moves.filter((m) => m.k === 'rapid' && m.z !== undefined && m.x === undefined)).toHaveLength(2);
+  });
   it('stays at depth between rings and passes: one ramp per pass, no lift until the end', () => {
     const o = op('inside'); o.depth = 6; o.stepDown = 3; o.entry = { kind: 'ramp', angle: 10 };
     const r = pocketMoves([rect()], o, ctx);
@@ -164,22 +185,12 @@ describe('disconnected pocket areas', () => {
 });
 
 describe('zig-zag fill start', () => {
-  it('the wall pass ends where the zig-zag begins, so the fill continues without a slot across the floor or a lift', () => {
+  it('starts with the continuous zig-zag and finishes on the outside wall', () => {
     const o = op('inside'); o.strategy = 'zigzag'; o.depth = 3; o.stepDown = 3; o.entry = { kind: 'ramp', angle: 10 };
     const r = pocketMoves([rect()], o, ctx);
-    const wall = r.toolPaths[0], firstLine = r.toolPaths[1];
-    expect(wall.closed).toBe(true); expect(firstLine.closed).toBe(false);
-    // the wall (after its forward ramp) is rotated so that the loop ends at the fill start
-    const ms = r.moves as { k: string; x?: number; y?: number; z?: number }[];
-    // find the first move that reaches the fill start
-    const fs = firstLine.start;
-    const idx = ms.findIndex((m) => m.x !== undefined && Math.abs(m.x - fs.x) < 1e-6 && Math.abs((m.y ?? NaN) - fs.y) < 1e-6);
-    expect(idx).toBeGreaterThan(0);
-    // no rapid (lift) between the beginning of the cut and that point
-    expect(ms.slice(3, idx + 1).some((m) => m.k === 'rapid')).toBe(false);
-    // and the tool centre never leaves the wall on the way there: every move up to the fill start lies on the wall outline
-    const onWall = (x: number, y: number) => Math.abs(x - 13) < 1e-6 || Math.abs(x - 87) < 1e-6 || Math.abs(y - 13) < 1e-6 || Math.abs(y - 47) < 1e-6;
-    expect(ms.slice(3, idx + 1).every((m) => m.x === undefined || onWall(m.x, m.y!))).toBe(true);
+    expect(r.toolPaths[0].closed).toBe(false);
+    expect(r.toolPaths.at(-1)!.closed).toBe(true);
+    expect(size(r.toolPaths.at(-1)!)).toEqual([74, 34]);
   });
   it('a raster line that is not adjacent to the previous one is reached at clearance height, not by cutting across', () => {
     const island = polylinePath([{ x: 40, y: 15 }, { x: 60, y: 15 }, { x: 60, y: 45 }, { x: 40, y: 45 }], true);

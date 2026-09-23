@@ -3,7 +3,7 @@ import type { Move, OpToolpath, Program, ToolProgram } from './types';
 import { contourMoves, type ContourCtx } from './contour';
 import { resolveFeeds } from './feeds';
 import { worldPaths, allPartsBBox, instanceTransforms } from './instances';
-import { zeroPoint } from './zero';
+import { safeTravelZ, zeroPoint } from './zero';
 import { estimateSeconds } from './time';
 import { bbox as pathBBox } from '@/lib/geometry/path';
 import { bboxCenter } from '@/lib/geometry/types';
@@ -87,7 +87,7 @@ export function planProject(project: Project, machine: Machine, version = 'dev')
       tp.s = tp.s || feeds.s;
       const group = Object.values(project.groups).find((g) => op.targets.some((t) => project.placements[t.placementId]?.groupId === g.id));
       const ctx: ContourCtx = {
-        tool, safeZ: project.stock.safeZ + (zTop), clearZ: project.stock.clearZ, vf: feeds.vf, vfPlunge: feeds.vfPlunge,
+        tool, safeZ: safeTravelZ(project.stock), clearZ: project.stock.clearZ, vf: feeds.vf, vfPlunge: feeds.vfPlunge,
         s: firstCut ? feeds.s : undefined, zTop, groupDepth: group?.zOffset ?? 0, thickness: project.stock.thickness,
       };
       const isLaserOp = op.type === 'laser-cut' || op.type === 'laser-engrave';

@@ -8,7 +8,7 @@ import { usePlan } from '@/lib/store/plan';
 import { t } from '@/lib/i18n';
 import { chooseCell, flattenMoves, type SimConfig, type SimMove } from '@/lib/cam/sim/heightmap';
 import { buildTimeline, positionAt } from '@/lib/cam/sim/timeline';
-import { zeroPoint } from '@/lib/cam/zero';
+import { safeTravelZ, zeroPoint } from '@/lib/cam/zero';
 import { allPartsBBox } from '@/lib/cam/instances';
 import { formatHms } from '@/lib/cam/time';
 import { makeSideTexture, makeTexture } from './materials';
@@ -72,7 +72,7 @@ export default function Preview3D() {
   const sim = useMemo(() => {
     if (!plan || !machine) return null;
     const stock = project.stock;
-    const moves: SimMove[] = flattenMoves(plan.program.tools, stock.safeZ);
+    const moves: SimMove[] = flattenMoves(plan.program.tools, safeTravelZ(stock));
     const ops = plan.program.tools.flatMap((tp) => tp.ops.map((o) => ({ op: project.operations[o.opId], tool: tp.tool })));
     const tools = ops.map(({ tool }) => ({ kind: tool.kind, d: tool.d, tipAngle: tool.tipAngle }));
     const opTypes = ops.map(({ op }) => op?.type ?? 'contour');

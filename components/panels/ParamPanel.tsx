@@ -75,6 +75,7 @@ function StockParams() {
         <NumberField label={s.thickness} unit="mm" value={stock.thickness} onChange={(v) => setStock({ thickness: v })} min={0.1} />
         <SelectField label={s.material} value={stock.material} options={(Object.keys(s.materials) as Material[]).map((m) => ({ value: m, label: s.materials[m] }))} onChange={(v) => setStock({ material: v })} />
         <Hl k="safeZ"><NumberField label={s.safeZ} unit="mm" value={stock.safeZ} onChange={(v) => setStock({ safeZ: v })} min={0.5} /></Hl>
+        <div className="full hint">{lang === 'de' ? 'Sicherer Z-Fahrabstand über der Materialoberkante (bei Z-Null oben: über Z=0).' : 'Safe Z travel height above the stock surface (above Z=0 when zero is on top).'}</div>
         <Hl k="clearZ"><NumberField label={s.clearZ} unit="mm" value={stock.clearZ} onChange={(v) => setStock({ clearZ: v })} min={0} /></Hl>
       </Section>
       <Section title={s.originMode} id="origin" defaultOpen={false}>

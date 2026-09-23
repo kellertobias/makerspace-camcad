@@ -34,7 +34,7 @@ describe('outside contour with tabs -> Estlcam G-code', () => {
     expect(text).toContain('T2 M06 (Spiralnutfraeser Gross)');
     expect(text).toContain('M03 S24000');
     expect(text).toContain('(No. 1 Ausschnitt bearbeiten: Umriss)');
-    expect(text).toMatch(/G00 Z5\.0000\n/);
+    expect(text).toMatch(/G00 Z10\.0000\n/);
     expect(text).toMatch(/G00 Z0\.5000\n/);
     expect(text).toMatch(/G01 Z0\.0000 F300 S24000\n/);
     // ramp then contour at F2500
@@ -42,7 +42,7 @@ describe('outside contour with tabs -> Estlcam G-code', () => {
     // tab pattern: rapid up to tab top (-11+3 = -8), then ramp down
     expect(text).toMatch(/G00 Z-8\.0000\n/);
     // program end
-    expect(text.trimEnd().endsWith('G00 Z5.0000\nG00 X0.0000 Y0.0000\nM05')).toBe(true);
+    expect(text.trimEnd().endsWith('G00 Z10.0000\nG00 X0.0000 Y0.0000\nM05')).toBe(true);
     expect(res.warnings).toEqual([]);
   });
 

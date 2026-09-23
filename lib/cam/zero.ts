@@ -1,6 +1,11 @@
-import type { Project, Vec2 } from '@/lib/model/project';
+import type { Project, Stock, Vec2 } from '@/lib/model/project';
 import type { BBox } from '@/lib/geometry/types';
 import { bboxValid } from '@/lib/geometry/types';
+
+/** Safe travel in machine Z coordinates; stock.safeZ is measured above the stock top. */
+export function safeTravelZ(stock: Stock): number {
+  return stock.safeZ + (stock.zZero === 'bottom' ? stock.thickness : 0);
+}
 
 /** Machine zero point in sheet coordinates (sheet origin = bottom-left corner of the stock). */
 export function zeroPoint(project: Project, partsBBox: BBox): Vec2 {

@@ -5,7 +5,7 @@ import type { ContourCtx } from './contour';
 import { orientForCut, chooseStart } from './contour';
 import { offsetClosed, difference, union, clipLines, orient } from '@/lib/geometry/offset';
 import { nestPaths, pointInPolygon } from '@/lib/geometry/containment';
-import { bbox as pathBBox, closestPoint, flatten, pathEnd, pathLength, polylinePath, reverse, rotateStart, samplePath, signedArea } from '@/lib/geometry/path';
+import { bbox as pathBBox, closestPoint, flatten, pathEnd, pathLength, pointAt, polylinePath, reverse, rotateStart, samplePath, signedArea } from '@/lib/geometry/path';
 import { depthPasses } from './depth';
 import { movesAlong, rampEntry, rampLength } from './entry';
 import { rasterLines } from './raster';
@@ -65,8 +65,7 @@ export function pocketMoves(paths: Path[], op: PocketOp, ctx: ContourCtx, exclus
   const moves: Move[] = [];
   const toolPaths: Path[] = [];
 
-  // wall passes: the contour-hugging pass first (for 'outside' that is contour + r, material inside it), then the
-  // region boundaries (CCW = material outside -> inside semantics, CW holes = exclusions -> material inside).
+  // Keep the outside wall for the final pass. Hole walls can be cut after the fill but before that finish pass.
   let walls = [...extraWalls.map((w) => ({ path: w, materialInside: true })), ...region.map((w) => ({ path: w, materialInside: signedArea(w) < 0 }))];
   if (op.overcut.kind !== 'none') { const oc = op.overcut.kind; walls = walls.map((w) => (!w.materialInside ? { ...w, path: applyOvercut(w.path, w.path, r, oc) } : w)); }
   const wallPaths = walls.map((w) => chooseStart(orientForCut(w.path, w.materialInside ? 'outside' : 'inside', op.climb), op));
@@ -104,19 +103,10 @@ export function pocketMoves(paths: Path[], op: PocketOp, ctx: ContourCtx, exclus
   const stepDown = op.stepDown ?? ctx.tool.cut.stepDown;
   const zStart = ctx.zTop - op.zOffset - (ctx.groupDepth ?? 0);
   const passes = depthPasses(op.depth, stepDown, zStart);
-  const first = wallPaths[0];
-  // Raster / zig-zag fills start at a corner of the region. Unless the user fixed the start point, the wall pass is
-  // rotated so that it ends exactly there (ramp length included): the fill continues where the contour ended instead
-  // of the tool cutting a slot across the floor to reach it.
-  const lineFill = op.strategy !== 'offset' && fill.length > 0 && first.closed && op.startT === undefined && op.startAngle === undefined;
-  const rampAngle = op.entry.kind === 'ramp' ? op.entry.angle : 90;
-  const alignedFirst = (drop: number): Path => {
-    if (!lineFill) return first;
-    const len = pathLength(first);
-    const L = Math.min(len, rampLength(drop, rampAngle));
-    const t = closestPoint(first, fill[0].start).t * len;
-    return rotateStart(first, ((((t - L) % len) + len) % len) / len);
-  };
+  const spiral = op.strategy === 'offset' && fill.length > 0;
+  const first = fill.length ? (spiral ? fill[fill.length - 1] : fill[0])
+    : wallPaths.find((_, i) => i >= extraWalls.length && walls[i].materialInside)
+      ?? wallPaths.find((_, i) => i >= extraWalls.length) ?? wallPaths[0];
   // The tool only descends once per depth pass (ramping along the first wall) and then links ring to ring at cutting
   // depth: every ring starts at its point closest to where the previous one ended, and the straight link is checked
   // against the pocket region (grown a hair, ring starts lie exactly on its boundary) so it never crosses an island or
@@ -157,7 +147,7 @@ export function pocketMoves(paths: Path[], op: PocketOp, ctx: ContourCtx, exclus
     return bestOk ? { ...bestOk, lift: false } : { ...bestAny!, lift: true };
   };
 
-  // Group walls and fill by connected pocket area (one outer region loop each) so an area is finished, walls first,
+  // Group walls and fill by connected pocket area (one outer region loop each) so an area is finished,
   // before the tool travels to the next one; otherwise every pass would cross between areas twice.
   const outers = region.filter((p) => signedArea(p) > 0);
   const outerPolys = outers.map((o) => offsetClosed([o], 0.05, false).map((g) => flatten(g, 0.05)));
@@ -167,12 +157,18 @@ export function pocketMoves(paths: Path[], op: PocketOp, ctx: ContourCtx, exclus
     outerPolys.forEach((polys, i) => { let n = 0; for (const q of pts) if (polys.some((poly) => pointInPolygon(q, poly))) n++; if (n > bestN) { bestN = n; best = i; } });
     return best;
   };
-  const areaWalls: Path[][] = outers.map(() => []), areaFill: Path[][] = outers.map(() => []);
+  const areaWalls: Path[][] = outers.map(() => []), areaOuterWalls: Path[][] = outers.map(() => []), areaFinishWalls: Path[][] = outers.map(() => []), areaFill: Path[][] = outers.map(() => []);
   const areaIndex = new Map<Path, number>();
-  for (const w of wallPaths) { const i = areaOf(w); areaIndex.set(w, i); if (w !== first) areaWalls[i].push(w); }
+  for (let wi = 0; wi < wallPaths.length; wi++) {
+    const w = wallPaths[wi], i = areaOf(w);
+    areaIndex.set(w, i);
+    (wi < extraWalls.length ? areaFinishWalls : !walls[wi].materialInside ? areaOuterWalls : areaWalls)[i].push(w);
+  }
   for (const f of fill) { const i = areaOf(f); areaIndex.set(f, i); areaFill[i].push(f); }
+  const entryPaths = fill.length ? fill : wallPaths.filter((w) => areaWalls.some((ws) => ws.includes(w)));
+  if (!entryPaths.length) entryPaths.push(...wallPaths);
 
-  const first0 = alignedFirst(zStart - passes[0]);
+  const first0 = first;
   moves.push({ k: 'rapid', x: first0.start.x, y: first0.start.y, z: ctx.safeZ, force: true });
   moves.push({ k: 'rapid', z: zStart + ctx.clearZ });
   let z = zStart;
@@ -181,18 +177,16 @@ export function pocketMoves(paths: Path[], op: PocketOp, ctx: ContourCtx, exclus
   for (let pi = 0; pi < passes.length; pi++) {
     const passZ = passes[pi];
     const zPrev = pi === 0 ? zStart : passes[pi - 1]; // depth already cleared everywhere: safe to plunge to after a lift
-    // the first pass enters at the chosen start point; later passes begin with the nearest wall from where the tool is
-    // (line fills: always the wall aligned with the fill start, reached across the already cleared floor)
+    // The first pass enters at the chosen fill start; later passes begin with the nearest fill from the current point.
     let firstEntry: { idx: number; path: Path; lift: boolean };
     if (pi === 0) firstEntry = { idx: -1, path: first0, lift: false };
-    else if (lineFill) { const a = alignedFirst(zPrev - passZ); firstEntry = { idx: 0, path: a, lift: !linkInside(cur, a.start) }; }
-    else firstEntry = pickNext(wallPaths, cur);
-    const firstPath = pi === 0 || lineFill ? first : wallPaths[firstEntry.idx];
+    else firstEntry = pickNext(entryPaths, cur);
+    const firstPath = pi === 0 ? first : entryPaths[firstEntry.idx];
     let queue: { path: Path; lift: boolean; firstEver: boolean } = { path: firstEntry.path, lift: firstEntry.lift, firstEver: pi === 0 };
     let area = areaIndex.get(firstPath) ?? 0;
     const remaining = new Set(outers.map((_, i) => i));
-    // per area: walls, then fill; within each group nearest-reachable first
-    let pools: Path[][] = [[...wallPaths.filter((w) => areaIndex.get(w) === area && w !== firstPath)], [...areaFill[area]]];
+    // Fill first, clear hole walls, then finish the outer boundary and contour-hugging wall.
+    let pools: Path[][] = [areaFill[area].filter((f) => f !== firstPath), areaWalls[area].filter((w) => w !== firstPath), areaOuterWalls[area].filter((w) => w !== firstPath), areaFinishWalls[area].filter((w) => w !== firstPath)];
     let gi = 0;
     for (;;) {
       let p = queue.path;
@@ -217,21 +211,29 @@ export function pocketMoves(paths: Path[], op: PocketOp, ctx: ContourCtx, exclus
         } else if (L > 1e-6) moves.push(...rampEntry(p, z, passZ, angle, ctx.vf));
         else moves.push({ k: 'line', z: passZ, f: ctx.vfPlunge });
       }
-      moves.push(...movesAlong(p, 0, len, passZ, passZ, ctx.vf));
+      // Leave the end of an offset loop open. The diagonal into the next loop replaces the
+      // square corner and keeps the cutter in a single feed motion through the spiral.
+      const transition = Math.min(stepOver, len * 0.08);
+      const exit = pointAt(p, (len - transition) / len).pt;
+      const travel = spiral && gi === 0 && pools[0]?.length && !pickNext(pools[0], exit).lift ? len - transition : len;
+      const pathMoves = movesAlong(p, 0, travel, passZ, passZ, ctx.vf);
+      moves.push(...pathMoves);
       z = passZ;
       cur = lastPt(moves);
-      if (pi === 0) toolPaths.push(p);
+      if (pi === 0) toolPaths.push(travel < len - 1e-6 ? { ...p, closed: false, segs: pathMoves.map((m) => m.k === 'arc'
+        ? { k: 'A' as const, to: { x: m.x, y: m.y }, c: { x: m.cx, y: m.cy }, cw: m.cw }
+        : { k: 'L' as const, to: { x: (m as Extract<Move, { k: 'line' }>).x!, y: (m as Extract<Move, { k: 'line' }>).y! } }) } : p);
       while (gi < pools.length && !pools[gi].length) gi++;
       if (gi >= pools.length) {
         // area finished: continue with the nearest remaining area, entering through one of its walls
         remaining.delete(area);
         const walls: Path[] = [];
-        for (const i of remaining) walls.push(...(areaWalls[i].length ? areaWalls[i] : areaFill[i]));
+        for (const i of remaining) walls.push(...(areaFill[i].length ? areaFill[i] : areaWalls[i].length ? areaWalls[i] : areaOuterWalls[i].length ? areaOuterWalls[i] : areaFinishWalls[i]));
         if (!walls.length) break;
         const nx = pickNext(walls, cur);
         const chosen = walls[nx.idx];
         area = areaIndex.get(chosen) ?? 0;
-        pools = [areaWalls[area].filter((w) => w !== chosen), areaFill[area].filter((f) => f !== chosen)];
+        pools = [areaFill[area].filter((f) => f !== chosen), areaWalls[area].filter((w) => w !== chosen), areaOuterWalls[area].filter((w) => w !== chosen), areaFinishWalls[area].filter((w) => w !== chosen)];
         gi = 0;
         queue = { path: nx.path, lift: nx.lift, firstEver: false };
         continue;

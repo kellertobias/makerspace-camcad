@@ -5,6 +5,7 @@ import { planProject, type PlanResult } from '@/lib/cam/plan';
 import { exportProgram, type ExportResult } from '@/lib/post';
 import { APP_VERSION } from '@/lib/version';
 import type { Machine } from '@/lib/model/project';
+import { safeTravelZ } from '@/lib/cam/zero';
 
 export interface PlanBundle { plan: PlanResult | null; gcode: ExportResult | null; machine: Machine | null; error: string | null }
 
@@ -20,7 +21,7 @@ export function usePlan(): PlanBundle {
     try {
       const plan = planProject(project, machine, APP_VERSION);
       const profile = profiles.find((p) => p.id === machine.postId);
-      const gcode = profile ? exportProgram(plan.program, profile, project.stock.safeZ, APP_VERSION, { laserMode: machine.laser?.dynamic === false ? 'M3' : 'M4' }) : null;
+      const gcode = profile ? exportProgram(plan.program, profile, safeTravelZ(project.stock), APP_VERSION, { laserMode: machine.laser?.dynamic === false ? 'M3' : 'M4' }) : null;
       return { plan, gcode, machine, error: profile ? null : 'post-missing' };
     } catch (e) {
       console.error(e);

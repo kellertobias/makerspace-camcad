@@ -8,7 +8,7 @@ export function defaultStock(): Stock {
   return {
     width: 600, height: 400, thickness: 12, material: 'mdf',
     origin: { mode: 'sheet-corner', corner: 'bl', manual: { x: 0, y: 0 } },
-    zZero: 'top', safeZ: 5, clearZ: 0.5,
+    zZero: 'top', safeZ: 10, clearZ: 0.5,
   };
 }
 
